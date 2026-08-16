@@ -1,0 +1,26 @@
+{
+  "expo": {
+    "name": "Citra Flows",
+    "slug": "citra-flows",
+    "version": "0.1.0",
+    "orientation": "landscape",
+    "userInterfaceStyle": "dark",
+    "platforms": [
+      "web"
+    ],
+    "web": {
+      "bundler": "metro",
+      "name": "Citra Flows",
+      "shortName": "Flows",
+      "lang": "en",
+      "themeColor": "#0b0f19",
+      "backgroundColor": "#0b0f19",
+      "display": "standalone",
+      "startUrl": "/"
+    },
+    "plugins": [
+      "expo-font",
+      "expo-asset"
+    ]
+  }
+}

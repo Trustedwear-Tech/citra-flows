@@ -1,0 +1,109 @@
+# ─────────────────────────────────────────────────────────────────────────
+# Citra Flows — data stores.
+#
+# Not meant to be run on its own; `docker-compose.quickstart.yml` includes it
+# and layers the application services on top.
+#
+# Nothing here publishes a host port. The application services reach these by
+# service name on the compose network, so the stack cannot collide with a
+# Mongo/Redis/MinIO you already have running. To poke at one from the host,
+# add a `ports:` line or use `docker compose exec`.
+# ─────────────────────────────────────────────────────────────────────────
+
+services:
+  mongodb:
+    # Pinned: `mongo:latest` silently moves major versions between machines.
+    image: mongo:7.0
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGODB_USER:-flows}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGODB_PASSWORD:-flows-local-dev}
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      # Authenticates, so it goes healthy only once the root user actually
+      # exists — otherwise the API can start against a half-initialised Mongo.
+      test: ["CMD-SHELL", "mongosh --quiet -u $$MONGO_INITDB_ROOT_USERNAME -p $$MONGO_INITDB_ROOT_PASSWORD --authenticationDatabase admin --eval 'db.adminCommand({ping:1}).ok' | grep -q 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+  # Single-node, NO replica set and NO keyfile. citra-flows uses neither
+  # transactions nor change streams (checked across citra-workflow, citra-mongo
+  # and Citra-Worker), so a replica set would buy nothing and costs a keyfile,
+  # an init container, and a class of "not primary"/"keyFile is required"
+  # startup failures.
+
+  # Cache + scheduler leader-election lock.
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+
+  # The job queue is a SEPARATE Redis on purpose: durable Redis Streams for
+  # workflow runs should not share an eviction policy or a memory ceiling with
+  # the cache. Same image, different instance.
+  queue-redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - queue-redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+
+  # S3-compatible store for file outputs (Excel/CSV/PDF exports, sandbox
+  # artifacts). Optional: a workflow that writes no files never touches it.
+  minio:
+    image: minio/minio:RELEASE.2024-09-22T00-33-43Z
+    restart: unless-stopped
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-flowsadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-flows-local-dev}
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+
+  # One-shot: create the bucket the app writes to, then exit. Without this the
+  # first file-output node fails with NoSuchBucket.
+  minio-init:
+    image: minio/mc:RELEASE.2024-10-02T08-27-28Z
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint:
+      - sh
+      - -c
+      - |
+        set -e
+        mc alias set local http://minio:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD"
+        mc mb --ignore-existing "local/$$BUCKET_NAME"
+        echo "[minio-init] bucket '$$BUCKET_NAME' ready"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-flowsadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-flows-local-dev}
+      BUCKET_NAME: ${BUCKET_NAME:-citra-flows-local}
+    restart: "no"
+
+volumes:
+  mongo-data:
+  redis-data:
+  queue-redis-data:
+  minio-data:

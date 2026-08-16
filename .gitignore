@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+myenv/
+.pytest_cache/
+
+# Node / Expo (ui/)
+node_modules/
+.expo/
+dist/
+web-build/
+*.tsbuildinfo
+
+# Secrets — never commit a real one. Templates (*.example) are fine.
+.env
+.env.*
+!.env*example
+!.env*sample
+!.env*template
+# The quickstart template: development-only values, deliberately committed so
+# `cp config/.env.local .env` works on a fresh clone. Not a real secret.
+!config/.env.local
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Editors / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log

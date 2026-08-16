@@ -1,0 +1,79 @@
+# Citra-Worker — async job runner.
+
+# Shared platform libs (one source of truth for queue + auth + mongo).
+-e ../citra-queue
+-e ../citra-auth
+-e ../citra-mongo
+# citra-cache — used by citra-workflow's scheduler for the leader-election
+# Redis lock (soft-imported in citra-workflow so HTTP-only consumers can
+# skip it; the worker needs it because it actually runs the scheduler).
+-e ../citra-cache
+
+# citra-llm — shared LLM client used by Citra-Service modules (bundled into
+# the worker image via PYTHONPATH, see Dockerfile). qwen_ocr_proxy and
+# citra_internet_service both import it; without this line a fresh local
+# venv will ModuleNotFoundError on those node paths.
+-e ../citra-llm
+
+# Shared utils for tracing + circuit breaker (workers also call
+# downstream services like Mongo, Milvus).
+-e ../citra-service-utils
+
+# Workflow engine — provides executor, scheduler, models, nodes.
+# Imported by handlers/workflow_handlers.py (the workflow.run handler)
+# and worker.py (scheduler boot).
+-e ../citra-workflow
+
+# APScheduler — cron trigger engine the workflow scheduler uses on the
+# elected leader. Soft-imported by citra-workflow; required here because
+# the worker boots the scheduler.
+apscheduler>=3.10,<4.0
+
+# Producer/consumer of the queue uses redis directly via citra-queue,
+# but pin the bottom dep so the resolver doesn't drift.
+redis>=5.0
+
+# Mongo client — workflow handler + inheritance handlers load + write
+# directly. (citra-mongo brings in motor/pymongo but pin for clarity.)
+motor>=3.3
+pymongo>=4.6
+
+# httpx — inheritance handlers POST to Citra-Service /admin/user-content-apply
+httpx>=0.25,<1.0
+
+# Dev convenience
+python-dotenv>=1.0
+
+# Prometheus /metrics (added 2026-05-16)
+prometheus-client>=0.20.0
+
+# SQL source node — citra_workflow/nodes/sources.py:SQLSourceNode does a
+# lazy `import sqlalchemy` at execute time. Worker is what actually runs
+# nodes, so the driver set has to be installed here. SQLAlchemy loads the
+# dialect driver DYNAMICALLY based on the connection-string prefix
+# (postgresql://, mysql+pymysql://, mssql+pyodbc://) — no static import
+# appears in source. Pin all three so any user-configured backend works.
+sqlalchemy>=2.0,<3.0
+psycopg2-binary>=2.9   # postgresql:// (ACME-POWER demo)
+pymysql>=1.1           # mysql+pymysql://
+pyodbc>=5.0            # mssql+pyodbc:// (also needs Microsoft ODBC Driver in the image)
+
+# Node lazy-imports — pinned to match Citra-Service/requirements.txt so
+# behavior is identical whether a node runs in Citra-Service (in-process
+# legacy path) or in Citra-Worker (queue path). All of these are imported
+# inside node execute() methods; without them the corresponding node
+# crashes at runtime with ModuleNotFoundError.
+pandas>=1.5.0          # CSV/Excel sources + DataFrame processors + Excel/Parquet outputs
+openpyxl>=3.1,<4.0     # Excel export writer engine
+boto3>=1.28.0          # S3 sources + outputs
+botocore>=1.31.0       # boto3 transitive (pinned for resolver stability)
+paramiko               # SFTP/SSH source + output nodes
+pymilvus==2.6.10       # Milvus vector-store output nodes
+PyPDF2                 # PDF source (PyPDF2 path)
+PyMuPDF==1.23.8        # PDF source (fitz path)
+pdfplumber             # PDF source (pdfplumber path)
+python-docx>=1.1.0     # Word source (docx.Document path)
+docx2txt               # Word source (docx2txt path)
+openai<2.0,>=1.0       # processors that fall back to raw OpenAI client (citra-llm pins 1.x)
+docker>=7.0,<8.0       # services.code_executor (chat sandbox tool from agent node)
+sentry-sdk>=2.0        # GlitchTip error tracking — workflow-failure ERROR logs → GlitchTip → support email

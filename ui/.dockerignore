@@ -1,0 +1,10 @@
+# node_modules is reinstalled inside the image; copying the host's costs
+# minutes and can carry platform-specific binaries.
+node_modules
+dist
+.expo
+.expo-shared
+npm-debug.log*
+.DS_Store
+Dockerfile
+.dockerignore

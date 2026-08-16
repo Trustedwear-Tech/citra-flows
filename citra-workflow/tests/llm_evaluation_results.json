@@ -1,0 +1,112 @@
+[
+  {
+    "applicant_id": "GOV-2026-001",
+    "name": "Maria Gonzalez",
+    "llm_response": {
+      "qualified": false,
+      "score": 0,
+      "reason": "LLM processing failed"
+    },
+    "duration_ms": 10621,
+    "status": "completed"
+  },
+  {
+    "applicant_id": "GOV-2026-002",
+    "name": "James Chen",
+    "llm_response": {
+      "qualified": false,
+      "score": 0,
+      "reason": "LLM processing failed"
+    },
+    "duration_ms": 9384,
+    "status": "completed"
+  },
+  {
+    "applicant_id": "GOV-2026-003",
+    "name": "Dr. Aisha Patel",
+    "llm_response": {
+      "qualified": false,
+      "score": 0,
+      "reason": "LLM processing failed"
+    },
+    "duration_ms": 9459,
+    "status": "completed"
+  },
+  {
+    "applicant_id": "GOV-2026-004",
+    "name": "Robert Williams",
+    "llm_response": {
+      "qualified": false,
+      "score": 0,
+      "reason": "LLM processing failed"
+    },
+    "duration_ms": 9445,
+    "status": "completed"
+  },
+  {
+    "applicant_id": "GOV-2026-005",
+    "name": "Sarah Kim",
+    "llm_response": {
+      "qualified": false,
+      "score": 0,
+      "reason": "LLM processing failed"
+    },
+    "duration_ms": 9453,
+    "status": "completed"
+  },
+  {
+    "applicant_id": "GOV-2026-006",
+    "name": "Mohammed Al-Rashid",
+    "llm_response": {
+      "qualified": false,
+      "score": 0,
+      "reason": "LLM processing failed"
+    },
+    "duration_ms": 9408,
+    "status": "completed"
+  },
+  {
+    "applicant_id": "GOV-2026-007",
+    "name": "Emily Thompson",
+    "llm_response": {
+      "qualified": false,
+      "score": 0,
+      "reason": "LLM processing failed"
+    },
+    "duration_ms": 9436,
+    "status": "completed"
+  },
+  {
+    "applicant_id": "GOV-2026-008",
+    "name": "David Okonkwo",
+    "llm_response": {
+      "qualified": false,
+      "score": 0,
+      "reason": "LLM processing failed"
+    },
+    "duration_ms": 9443,
+    "status": "completed"
+  },
+  {
+    "applicant_id": "GOV-2026-009",
+    "name": "Lisa Martinez",
+    "llm_response": {
+      "qualified": false,
+      "score": 0,
+      "reason": "LLM processing failed"
+    },
+    "duration_ms": 9473,
+    "status": "completed"
+  },
+  {
+    "applicant_id": "GOV-2026-010",
+    "name": "Dr. Thomas Wright",
+    "llm_response": {
+      "qualified": false,
+      "score": 0,
+      "reason": "LLM processing failed"
+    },
+    "duration_ms": 9497,
+    "status": "completed"
+  }
+]

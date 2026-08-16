@@ -1,0 +1,101 @@
+# citra-workflow — standalone service deps.
+#
+# Shared platform libs are pulled in via editable installs from the
+# monorepo so a single edit propagates to every consumer without a
+# package-publish cycle. In production-CI, swap these to versioned
+# wheels published to CodeArtifact.
+-e ../citra-queue
+-e ../citra-auth
+-e ../citra-mongo
+-e ../citra-cache
+-e ../citra-llm
+
+# Web framework
+fastapi>=0.110,<0.120
+uvicorn[standard]>=0.27,<1.0
+gunicorn>=21.2,<23.0
+python-multipart>=0.0.20,<1.0
+
+# Data + serialisation
+# [email] pulls email-validator, which `EmailStr` needs at CLASS-DEFINITION
+# time — auth_routes.py declares one, so without this `import citra_workflow.main`
+# raises ImportError and the service cannot start at all. It only appeared to
+# work in dev because email-validator was already present in that virtualenv;
+# a clean container failed on first boot.
+pydantic[email]>=2.5,<3.0
+
+# Lazily imported (at node execute time) by CSV/Excel sources, the DataFrame
+# processors (data_transform), and Excel/CSV/Parquet outputs in
+# nodes/{sources,processors,outputs}.py. citra-workflow executes nodes in-process
+# for the AI assistant's run_workflow_test, so the package must be present here —
+# not only in Citra-Worker. Symmetric with Citra-Worker's pins.
+pandas>=1.5.0
+# Excel read/write engine — sources.py uses pd.read_excel and outputs.py calls
+# df.to_excel(..., engine="openpyxl"); pandas needs openpyxl present for both.
+openpyxl>=3.1,<4.0
+
+# Document parsing (file-reader source nodes, sources.py) + Milvus vector output
+# (outputs.py). Same reason as pandas above: reached when citra-workflow executes
+# nodes in-process for run_workflow_test. pymilvus is imported UNGUARDED (a missing
+# install hard-crashes the Milvus output node); the PDF/Word readers fall back
+# across engines, so all are pinned for parity with Citra-Worker (same versions).
+pymilvus==2.6.10        # Milvus vector-store output node
+PyPDF2                  # PDF source — PyPDF2 path
+PyMuPDF==1.23.8         # PDF source — fitz path
+pdfplumber              # PDF source — pdfplumber path
+python-docx>=1.1.0      # Word source — docx.Document path
+docx2txt                # Word source — docx2txt path
+
+# Network clients
+httpx>=0.25,<1.0
+redis>=5.0,<6.0
+motor>=3.3,<4.0
+
+# Crypto for connection secrets (encrypt_env_config / decrypt_env_config)
+cryptography>=41.0
+
+# Scheduling — used by scheduler.py (if scheduler is ever moved here;
+# today it runs in Citra-Worker). Listed because the scheduler module
+# is part of the citra_workflow package and unconditional imports
+# should resolve.
+apscheduler>=3.10,<4.0
+# IANA timezone database for stdlib zoneinfo. APScheduler 3.11 dropped pytz, so
+# scheduler.py resolves zones via zoneinfo; this guarantees zone data exists even
+# on slim images that omit the OS tzdata package.
+tzdata>=2024.1
+
+# Observability
+sentry-sdk[fastapi]>=2.0
+
+# Shared service utils (distributed tracing — OTel spans → Tempo).
+-e ../citra-service-utils
+
+# Dev convenience — .env loading at startup
+python-dotenv>=1.0
+
+# Prometheus /metrics (added 2026-05-16)
+prometheus-fastapi-instrumentator==7.0.0
+
+# Docker SDK — the `code_block` node launches an isolated sandbox
+# container against the worker's local Docker daemon (added 2026-05-22).
+docker>=7.0,<8.0
+
+# SQL source node — sources.py:SQLSourceNode lazy-imports sqlalchemy at
+# execute time. Listed here so a standalone citra-workflow service install
+# can also execute SQL nodes; Citra-Worker pins the same set independently.
+sqlalchemy>=2.0,<3.0
+psycopg2-binary>=2.9
+
+# Connection-test endpoint deps — router.py:_run_test() validates a
+# user-entered connection string at request time. SQLAlchemy loads the
+# driver DYNAMICALLY based on the dialect prefix (mysql+pymysql://,
+# mssql+pyodbc://, …) so AST can't infer these — they have to be pinned
+# explicitly. Symmetric set with Citra-Worker (same drivers it needs at
+# node execute time). boto3/paramiko are also reached from this endpoint
+# for S3 / SFTP connection tests.
+pymysql>=1.1          # mysql+pymysql:// connection-string test
+pyodbc>=5.0           # mssql+pyodbc:// connection-string test
+boto3>=1.28.0         # S3 connection test
+botocore>=1.31.0      # boto3 transitive (pinned for resolver stability)
+paramiko              # SFTP connection test
+python-multipart>=0.0.9  # multipart/form-data — /execute-with-file upload endpoint

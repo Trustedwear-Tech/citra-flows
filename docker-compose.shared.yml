@@ -1,0 +1,130 @@
+# ─────────────────────────────────────────────────────────────────────────
+# Citra Flows — running on Citra-AI's data stores instead of its own.
+#
+#   docker compose -f docker-compose.shared.yml up -d --build
+#
+# The difference from docker-compose.quickstart.yml is one line: this file does
+# NOT `include: docker-compose.infra.yml`. Flows brings no Mongo, no Redis, no
+# MinIO. It joins Citra-AI's network and uses the instances already running
+# there — five fewer containers and four fewer volumes on the machine.
+#
+# It works with no code change because the DNS names already agree: flows refers
+# to `mongodb`, `redis`, `queue-redis` and `minio`, and those are exactly the
+# compose service names Citra-AI uses on `citra-ai-net`.
+#
+# SEPARATION — one server per store, separate namespaces inside:
+#   Mongo database   citra_flows        (Citra-AI uses `dev`)
+#   Redis cache DB   5                  (Citra-AI uses 0)
+#   Redis queue DB   5                  (Citra-AI uses 0)
+#   MinIO bucket     citra-flows        (Citra-AI has citra-ai, demo-source-citra)
+#
+# THE TRADE: if Citra-AI's data stores are down, flows is down. And a
+# `docker compose down -v` in Citra-AI destroys flows' data too, because the
+# citra_flows database lives inside Citra-AI's Mongo volume.
+#
+# To go back to standalone, use docker-compose.quickstart.yml — it is untouched.
+# ─────────────────────────────────────────────────────────────────────────
+
+x-app-env: &app-env
+  # Citra-AI's local Mongo is a replica set with NO auth, so there are no
+  # credentials in this string. directConnection=true is required: without it the
+  # driver tries to discover replica-set members by their internal hostnames and
+  # hangs instead of failing.
+  MONGODB_URI: mongodb://mongodb:27017/${MONGODB_DATABASE:-citra_flows}?directConnection=true
+  MONGODB_CONN_STRING: mongodb://mongodb:27017/${MONGODB_DATABASE:-citra_flows}?directConnection=true
+  MONGODB_DATABASE: ${MONGODB_DATABASE:-citra_flows}
+
+  # Both Redis instances are shared, so flows takes its own DB index on each.
+  # Citra-AI stays on 0. Both keyspaces were empty when this was set.
+  #
+  # BOTH INSTANCES REQUIRE A PASSWORD (`redis-server --requirepass`). An earlier
+  # version of this file sent "" and the result was a stack that looked perfectly
+  # healthy: /health returned 200, Mongo writes succeeded, and only an actual
+  # execute call failed with "Worker queue unavailable: Authentication required."
+  # Hence `:?` and not a default — a missing password must fail at `up`, loudly,
+  # rather than surface later as an unexplained queue error.
+  REDIS_HOST: redis
+  REDIS_PORT: "6379"
+  REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD must be set — use Citra-AI's redis --requirepass value}
+  REDIS_DB: "${FLOWS_REDIS_DB:-5}"
+  QUEUE_REDIS_HOST: queue-redis
+  QUEUE_REDIS_PORT: "6379"
+  QUEUE_REDIS_PASSWORD: ${QUEUE_REDIS_PASSWORD:?QUEUE_REDIS_PASSWORD must be set — use Citra-AI's queue-redis --requirepass value}
+  QUEUE_REDIS_DB: "${FLOWS_QUEUE_REDIS_DB:-5}"
+
+  # Citra-AI's MinIO, flows' own bucket. Credentials come from .env so this file
+  # carries no secrets.
+  BUCKET_NAME: ${BUCKET_NAME:-citra-flows}
+  BUCKET_ENDPOINT_URL: http://minio:9000
+  BUCKET_ACCESS_KEY: ${BUCKET_ACCESS_KEY:-minioadmin}
+  BUCKET_SECRET_KEY: ${BUCKET_SECRET_KEY:?BUCKET_SECRET_KEY must be set — use Citra-AI's MinIO password}
+  BUCKET_REGION: ${BUCKET_REGION:-us-east-1}
+
+services:
+  # Idempotent: `mc mb -p` succeeds if the bucket already exists, so this is safe
+  # to leave in the normal startup path.
+  flows-bucket-init:
+    image: minio/mc:RELEASE.2024-10-02T08-27-28Z
+    networks: [citra-ai-net]
+    entrypoint: >
+      sh -c "mc alias set ai http://minio:9000 '${BUCKET_ACCESS_KEY:-minioadmin}' '${BUCKET_SECRET_KEY:?}'
+      && mc mb -p ai/${BUCKET_NAME:-citra-flows}"
+    restart: "no"
+
+  citra-workflow:
+    build:
+      context: .
+      dockerfile: citra-workflow/Dockerfile
+    image: citra-flows/workflow:local
+    restart: unless-stopped
+    env_file: [.env]
+    environment:
+      <<: *app-env
+      WORKFLOW_SERVICE_HOST: 0.0.0.0
+      WORKFLOW_SERVICE_PORT: "9200"
+      CORS_ALLOWED_ORIGINS: http://localhost:${FLOWS_UI_PORT:-8088}
+    ports:
+      - "${FLOWS_API_PORT:-9200}:9200"
+    networks: [citra-ai-net]
+    # No depends_on for the data stores: compose cannot wait on containers it
+    # does not own. They belong to the Citra-AI project and are normally already
+    # up; if they are not, this restarts until they are.
+    depends_on:
+      flows-bucket-init:
+        condition: service_completed_successfully
+
+  # Not optional. The API only enqueues onto Redis Streams — nothing in the API
+  # process consumes it. Without the worker every run sits in "queued" forever
+  # while the stack looks perfectly healthy.
+  citra-worker:
+    build:
+      context: .
+      dockerfile: Citra-Worker/Dockerfile
+    image: citra-flows/worker:local
+    restart: unless-stopped
+    env_file: [.env]
+    environment: *app-env
+    networks: [citra-ai-net]
+    depends_on:
+      citra-workflow:
+        condition: service_healthy
+
+  citra-flows-ui:
+    build:
+      context: ./ui
+      args:
+        # Baked into the JS bundle at build time. A browser on the host must
+        # reach this, so it is localhost:<published port>, not a service name.
+        EXPO_PUBLIC_WORKFLOW_API_BASE: http://localhost:${FLOWS_API_PORT:-9200}
+    image: citra-flows/ui:local
+    restart: unless-stopped
+    ports:
+      - "${FLOWS_UI_PORT:-8088}:80"
+    networks: [citra-ai-net]
+    depends_on:
+      citra-workflow:
+        condition: service_healthy
+
+networks:
+  citra-ai-net:
+    external: true

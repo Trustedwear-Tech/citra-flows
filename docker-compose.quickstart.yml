@@ -1,0 +1,121 @@
+# ─────────────────────────────────────────────────────────────────────────
+# Citra Flows — the whole stack, one command.
+#
+#   cp .env.example .env      # safe local defaults
+#   make install                   # build + start + wait until healthy
+#
+# or without make:
+#
+#   docker compose -f docker-compose.quickstart.yml up -d --build
+#
+# What runs:
+#   mongodb · redis · queue-redis · minio   (docker-compose.infra.yml)
+#   citra-workflow   the API, published on ${FLOWS_API_PORT:-9200}
+#   citra-worker     executes runs — WITHOUT IT, RUNS SIT IN "queued" FOREVER
+#   citra-flows-ui   the web app, published on ${FLOWS_UI_PORT:-8088}
+#
+# The worker is not optional. The API only enqueues a job onto Redis Streams;
+# nothing in the API process consumes it. A stack without the worker looks
+# completely healthy and every run stays queued.
+#
+# `.env` supplies user config (secrets, LLM keys). The `environment:` blocks
+# below override the host-oriented values in it (localhost → service names),
+# so the same .env works for `uvicorn` on the host and for this stack.
+# ─────────────────────────────────────────────────────────────────────────
+include:
+  - docker-compose.infra.yml
+
+x-app-env: &app-env
+  # Data stores, by compose service name.
+  MONGODB_URI: mongodb://${MONGODB_USER:-flows}:${MONGODB_PASSWORD:-flows-local-dev}@mongodb:27017/${MONGODB_DATABASE:-citra_flows}?authSource=admin
+  MONGODB_CONN_STRING: mongodb://${MONGODB_USER:-flows}:${MONGODB_PASSWORD:-flows-local-dev}@mongodb:27017/${MONGODB_DATABASE:-citra_flows}?authSource=admin
+  MONGODB_DATABASE: ${MONGODB_DATABASE:-citra_flows}
+  REDIS_HOST: redis
+  REDIS_PORT: "6379"
+  REDIS_PASSWORD: ""
+  QUEUE_REDIS_HOST: queue-redis
+  QUEUE_REDIS_PORT: "6379"
+  QUEUE_REDIS_PASSWORD: ""
+  # File outputs → the bundled MinIO. Override to point at real S3.
+  # These are the names bucket.py actually reads (BUCKET_*, not AWS_*).
+  # Setting BUCKET_ENDPOINT_URL also switches boto3 to path-style addressing,
+  # which MinIO requires — bucket.py derives that, so there is nothing to set.
+  BUCKET_NAME: ${BUCKET_NAME:-citra-flows-local}
+  BUCKET_ENDPOINT_URL: http://minio:9000
+  BUCKET_ACCESS_KEY: ${MINIO_ROOT_USER:-flowsadmin}
+  BUCKET_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-flows-local-dev}
+  BUCKET_REGION: ${BUCKET_REGION:-us-east-1}
+
+x-app-depends: &app-depends
+  mongodb:
+    condition: service_healthy
+  redis:
+    condition: service_healthy
+  queue-redis:
+    condition: service_healthy
+
+services:
+  citra-workflow:
+    build:
+      context: .
+      dockerfile: citra-workflow/Dockerfile
+    image: citra-flows/workflow:local
+    restart: unless-stopped
+    env_file: [.env]
+    environment:
+      <<: *app-env
+      WORKFLOW_SERVICE_HOST: 0.0.0.0
+      WORKFLOW_SERVICE_PORT: "9200"
+      # The browser calls the API from the host, so the allowed origin is the
+      # UI's PUBLISHED url — not its compose service name.
+      CORS_ALLOWED_ORIGINS: http://localhost:${FLOWS_UI_PORT:-8088}
+    ports:
+      - "${FLOWS_API_PORT:-9200}:9200"
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      queue-redis:
+        condition: service_healthy
+      # Bucket creation hangs off the API rather than floating free, so
+      # `up --wait citra-workflow ...` still runs it. `--wait` cannot be
+      # pointed at the whole project: it treats this one-shot container's
+      # clean exit as a failure and returns 1 on a perfectly good stack.
+      minio-init:
+        condition: service_completed_successfully
+
+  citra-worker:
+    build:
+      context: .
+      dockerfile: Citra-Worker/Dockerfile
+    image: citra-flows/worker:local
+    restart: unless-stopped
+    env_file: [.env]
+    environment: *app-env
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      queue-redis:
+        condition: service_healthy
+      citra-workflow:
+        condition: service_healthy
+
+  citra-flows-ui:
+    build:
+      context: ./ui
+      args:
+        # Baked into the JS bundle at build time — a browser on the host must
+        # be able to reach this, so it is localhost:<published port>, not the
+        # compose service name. Change FLOWS_API_PORT and you must rebuild
+        # (`make build`), not just restart.
+        EXPO_PUBLIC_WORKFLOW_API_BASE: http://localhost:${FLOWS_API_PORT:-9200}
+    image: citra-flows/ui:local
+    restart: unless-stopped
+    ports:
+      - "${FLOWS_UI_PORT:-8088}:80"
+    depends_on:
+      citra-workflow:
+        condition: service_healthy
