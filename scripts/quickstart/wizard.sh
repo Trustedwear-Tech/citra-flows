@@ -108,7 +108,24 @@ echo "  and use docker-compose.shared.yml — see its header."
 docker compose -f docker-compose.quickstart.yml up -d --build --wait \
   citra-workflow citra-worker citra-flows-ui
 
-say "Done"
-echo "  UI:       http://localhost:${FLOWS_UI_PORT:-8088}"
-echo "  Sign in:  $(grep -m1 '^ADMIN_EMAIL=' "$ENV_FILE" | cut -d= -f2-)  /  $(grep -m1 '^ADMIN_PASSWORD=' "$ENV_FILE" | cut -d= -f2-)"
-echo "  Verify:   python scripts/smoke_test.py"
+# Every value from .env, not the shell environment: FLOWS_UI_PORT is set in
+# the file, so $FLOWS_UI_PORT here would print the default even after the
+# user changed the port.
+envval() { grep -m1 "^$1=" "$ENV_FILE" | cut -d= -f2- | tr -d '\r'; }
+ui_port="$(envval FLOWS_UI_PORT)";  ui_port="${ui_port:-8088}"
+api_port="$(envval FLOWS_API_PORT)"; api_port="${api_port:-9200}"
+org_id="$(envval ADMIN_ORG_ID)";    org_id="${org_id:-local}"
+
+say "Done — Citra Flows is running"
+echo "  UI:        http://localhost:${ui_port}"
+echo "  API docs:  http://localhost:${api_port}/docs"
+echo ""
+echo "  Sign in:   $(envval ADMIN_EMAIL)  /  $(envval ADMIN_PASSWORD)"
+echo "             seeded as super_admin in org '${org_id}' — every workflow,"
+echo "             run and connection you create is scoped to that org."
+echo "             Credentials live in .env (grep ^ADMIN_ .env)."
+echo ""
+echo "  No public sign-up: add teammates from this account — see INSTALL.md,"
+echo "  section 'Sign in'."
+echo ""
+echo "  Verify:    python scripts/smoke_test.py"

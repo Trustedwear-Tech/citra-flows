@@ -35,5 +35,5 @@ set_key MONGODB_PASSWORD "$(rand)"
 #   grep ^ADMIN_ .env
 set_key ADMIN_PASSWORD "$(rand | cut -c1-12)"
 echo "Created .env from .env.example with fresh JWT_SECRET, MONGODB_PASSWORD and ADMIN_PASSWORD."
-echo "Sign-in credentials: grep ^ADMIN_ .env"
+echo "Sign-in credentials: grep ^ADMIN_ .env  (seeded as super_admin in org ADMIN_ORG_ID on the next 'up')"
 echo "Set LLM_API_KEY before using the AI-assisted steps (or run: make wizard)."

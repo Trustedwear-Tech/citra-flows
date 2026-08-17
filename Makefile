@@ -27,10 +27,13 @@ wizard: ## Guided first run: generate .env with fresh secrets, then start everyt
 install: .env ## First run: create .env, build images, start everything, wait for healthy
 	@$(MAKE) up
 	@echo ""
-	@echo "  UI   http://localhost:$$(grep -E '^FLOWS_UI_PORT=' .env | cut -d= -f2 | tr -d '\r')"
-	@echo "  API  http://localhost:$$(grep -E '^FLOWS_API_PORT=' .env | cut -d= -f2 | tr -d '\r')/docs"
+	@echo "  UI       http://localhost:$$(grep -E '^FLOWS_UI_PORT=' .env | cut -d= -f2 | tr -d '\r')"
+	@echo "  API      http://localhost:$$(grep -E '^FLOWS_API_PORT=' .env | cut -d= -f2 | tr -d '\r')/docs"
 	@echo ""
-	@echo "  Sign in with WORKFLOW_BOOTSTRAP_EMAIL / WORKFLOW_BOOTSTRAP_PASSWORD from .env."
+	@echo "  Sign in  $$(grep -E '^ADMIN_EMAIL=' .env | cut -d= -f2 | tr -d '\r')  /  $$(grep -E '^ADMIN_PASSWORD=' .env | cut -d= -f2 | tr -d '\r')"
+	@echo "           seeded as super_admin in org '$$(grep -E '^ADMIN_ORG_ID=' .env | cut -d= -f2 | tr -d '\r')' — everything you create is scoped to it."
+	@echo "           No public sign-up; add teammates from this account (INSTALL.md, 'Sign in')."
+	@echo ""
 	@echo "  Verify the install end to end with:  make smoke"
 
 up: .env ## Build if needed and start the stack in the background

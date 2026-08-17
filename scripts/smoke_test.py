@@ -194,15 +194,29 @@ def main() -> int:
     finally:
         request("DELETE", f"{base}/api/workflows/{workflow_id}", token)
 
-    return report()
+    # For the plain `docker compose up` path this is the ONLY place setup
+    # information ever reaches the console, so the success report carries
+    # everything needed to sign in. The password itself is deliberately not
+    # echoed — this script also runs in CI, where logs are retained.
+    return report([
+        f"  UI       http://localhost:{env.get('FLOWS_UI_PORT', '8088')}",
+        f"  Sign in  {email}   (password: ADMIN_PASSWORD in .env)",
+        f"           super_admin in org '{env.get('ADMIN_ORG_ID', 'local')}' — every workflow, run and",
+        "           connection is scoped to that org. No public sign-up; add",
+        "           teammates from this account (INSTALL.md, section 'Sign in').",
+    ])
 
 
-def report() -> int:
+def report(summary: list[str] | None = None) -> int:
     print()
     if _failures:
         print(f"{RED}Smoke test FAILED{RESET} — {len(_failures)} check(s) did not pass.\n")
         return 1
     print(f"{GREEN}Smoke test passed — your Citra Flows install works.{RESET}\n")
+    for line in summary or []:
+        print(line)
+    if summary:
+        print()
     return 0
 
 
