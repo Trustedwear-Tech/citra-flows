@@ -7,3 +7,13 @@ licence until the Change Date, after which each version converts to the Apache
 License 2.0.
 
 Commercial licensing: contact@citra-ai.com
+
+--------------------------------------------------------------------------------
+THIRD-PARTY COMPONENTS
+--------------------------------------------------------------------------------
+
+The citra-common/ directory is a git submodule of the Citra Common packages,
+which are NOT covered by the Business Source License above. They are licensed
+under the Apache License, Version 2.0, and remain so; the submodule carries its
+own LICENSE and NOTICE. Nothing in the Business Source License grant above
+restricts your rights to that code under Apache-2.0.
