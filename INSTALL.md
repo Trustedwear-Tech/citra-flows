@@ -50,8 +50,19 @@ which owns users, passwords, orgs, departments and roles — and the quickstart
 ships one, built from the `citra-common` submodule. The first account is seeded
 on every `up` by the one-shot `citra-user-service-init` container from
 `ADMIN_EMAIL` / `ADMIN_PASSWORD` in `.env` (idempotent — re-running resets the
-password to the `.env` value). There is no public sign-up; create further
-accounts with `create-admin.js` inside the user-service container.
+password to the `.env` value). It is created as **`super_admin`** in the org
+**`ADMIN_ORG_ID`** (default `local`) — every workflow, run and connection you
+create is scoped to that org. The wizard and `make install` rotate
+`ADMIN_PASSWORD` to a random value and print the credentials when they finish;
+they are always readable with `grep ^ADMIN_ .env`.
+
+There is no public sign-up. Create further accounts (org admins, members) from
+the seeded admin with `create-admin.js` inside the user-service container:
+
+```bash
+docker compose -f docker-compose.quickstart.yml exec citra-user-service \
+  node src/scripts/create-admin.js someone@your.org 'their-password' 'Their Name' --role=user --org=local
+```
 
 Pointing at an EXISTING Citra-User-Service instead? Set `USER_SERVICE_URL` to
 it, and set `JWT_SECRET` to the **same value that service uses** — it issues
