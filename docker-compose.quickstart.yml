@@ -18,6 +18,7 @@
 #
 # What runs:
 #   mongodb · redis · queue-redis · minio   (docker-compose.infra.yml)
+#   citra-user-service   sign-in — owns accounts and issues the tokens
 #   citra-workflow   the API, published on ${FLOWS_API_PORT:-9200}
 #   citra-worker     executes runs — WITHOUT IT, RUNS SIT IN "queued" FOREVER
 #   citra-flows-ui   the web app, published on ${FLOWS_UI_PORT:-8088}
@@ -63,6 +64,80 @@ x-app-depends: &app-depends
     condition: service_healthy
 
 services:
+  # ── Identity ──────────────────────────────────────────────────────────────
+  # The engine stores no accounts: sign-in is proxied to Citra-User-Service,
+  # so the quickstart ships one, built from the citra-common submodule — the
+  # same wiring citra-decision-system uses. It reads JWT_SECRET from the same
+  # root .env as citra-workflow, so the token it issues verifies there by
+  # construction. Not published to the host; only the API talks to it.
+  #
+  # Dockerfile.dev installs dependencies only — the source arrives by bind
+  # mount, exactly as in citra-decision-system's dev compose. If the mount is
+  # empty, `git submodule update --init` has not been run.
+  citra-user-service:
+    build:
+      context: ./citra-common/Citra-User-Service
+      dockerfile: Dockerfile.dev
+    image: citra-flows/user-service:local
+    restart: unless-stopped
+    env_file: [.env]
+    environment:
+      PORT: "7004"
+      # The default is 'google'; without 'local' the /api/auth/local/login
+      # route this stack signs in through is never mounted and every login
+      # is a 404. Email/password is the only provider that makes sense here.
+      AUTH_PROVIDERS: local
+      # Required at boot (fail-loud config), but only the platform user-admin
+      # routes ever CALL it — and Flows does not ship Citra-Service. The
+      # reserved .invalid TLD guarantees DNS failure, so if one of those routes
+      # is ever hit it errors loudly instead of quietly reaching a wrong host.
+      CITRA_SERVICE_URL: http://citra-service.invalid:8085
+      # create-admin.js and environment.js read MONGODB_CONNECTION_STRING;
+      # the *app-env names (MONGODB_URI / MONGODB_CONN_STRING) are not enough.
+      MONGODB_CONNECTION_STRING: mongodb://${MONGODB_USER:-flows}:${MONGODB_PASSWORD:-flows-local-dev}@mongodb:27017/${MONGODB_DATABASE:-citra_flows}?authSource=admin
+      MONGODB_DATABASE: ${MONGODB_DATABASE:-citra_flows}
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_PASSWORD: ""
+      QUEUE_REDIS_HOST: queue-redis
+      QUEUE_REDIS_PORT: "6379"
+      QUEUE_REDIS_PASSWORD: ""
+    volumes:
+      - ./citra-common/Citra-User-Service:/app
+      - user_node_modules:/app/node_modules
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7004/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 24
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # One-shot: create (or refresh) the first account, then exit — the same
+  # create-admin.js step citra-decision-system runs from its start.sh, done
+  # compose-native here so the two-command install stays two commands.
+  # Idempotent; re-running resets the password to ADMIN_PASSWORD.
+  citra-user-service-init:
+    image: citra-flows/user-service:local
+    env_file: [.env]
+    environment:
+      MONGODB_CONNECTION_STRING: mongodb://${MONGODB_USER:-flows}:${MONGODB_PASSWORD:-flows-local-dev}@mongodb:27017/${MONGODB_DATABASE:-citra_flows}?authSource=admin
+      MONGODB_DATABASE: ${MONGODB_DATABASE:-citra_flows}
+    volumes:
+      - ./citra-common/Citra-User-Service:/app
+      - user_node_modules:/app/node_modules
+    command: ["node", "src/scripts/create-admin.js",
+              "${ADMIN_EMAIL:-admin@citra-ai.com}",
+              "${ADMIN_PASSWORD:-change-me-locally}",
+              "Citra Admin", "--role=super_admin",
+              "--org=${ADMIN_ORG_ID:-local}"]
+    depends_on:
+      citra-user-service:
+        condition: service_healthy
+
   citra-workflow:
     build:
       context: .
@@ -74,6 +149,7 @@ services:
       <<: *app-env
       WORKFLOW_SERVICE_HOST: 0.0.0.0
       WORKFLOW_SERVICE_PORT: "9200"
+      USER_SERVICE_URL: http://citra-user-service:7004
       # The browser calls the API from the host, so the allowed origin is the
       # UI's PUBLISHED url — not its compose service name.
       CORS_ALLOWED_ORIGINS: http://localhost:${FLOWS_UI_PORT:-8088}
@@ -86,11 +162,15 @@ services:
         condition: service_healthy
       queue-redis:
         condition: service_healthy
-      # Bucket creation hangs off the API rather than floating free, so
-      # `up --wait citra-workflow ...` still runs it. `--wait` cannot be
-      # pointed at the whole project: it treats this one-shot container's
+      # The one-shots hang off the API rather than floating free, so
+      # `up --wait citra-workflow ...` still runs them. `--wait` cannot be
+      # pointed at the whole project: it treats a one-shot container's
       # clean exit as a failure and returns 1 on a perfectly good stack.
       minio-init:
+        condition: service_completed_successfully
+      # An API that is "healthy" but has no account to sign in with is the
+      # fresh-clone failure this stack used to ship. Gate on the seed.
+      citra-user-service-init:
         condition: service_completed_successfully
 
   citra-worker:
@@ -127,3 +207,7 @@ services:
     depends_on:
       citra-workflow:
         condition: service_healthy
+
+volumes:
+  # The image's npm install, kept out of the bind mount's way.
+  user_node_modules:

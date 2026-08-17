@@ -10,18 +10,19 @@
 
 # Install Citra Flows
 
-Runs on a laptop. Docker is the only prerequisite — two commands, any OS:
+Runs on a laptop. Docker is the only prerequisite — three commands, any OS:
 
 ```bash
+git submodule update --init            # citra-common: the bundled user service
 cp .env.example .env
 docker compose -f docker-compose.quickstart.yml up -d --build --wait citra-workflow citra-worker citra-flows-ui
 ```
 
-(PowerShell: `copy config\.env.local .env`)
+(PowerShell: `copy .env.example .env`)
 
-That builds three images, starts seven containers, and returns once they are
-healthy. First run takes 5–10 minutes — mostly `pip install` and the Expo
-bundle; afterwards it is seconds.
+That builds four images, starts nine containers, and returns once they are
+healthy. First run takes 5–10 minutes — mostly `pip install`, `npm install`
+and the Expo bundle; afterwards it is seconds.
 
 Then verify it actually works:
 
@@ -42,16 +43,20 @@ Open the UI:
 |---|---|
 | **UI** | http://localhost:8088 |
 | **API docs** | http://localhost:9200/docs |
-| **Sign in** | your Citra account |
+| **Sign in** | `ADMIN_EMAIL` / `ADMIN_PASSWORD` from your `.env` |
 
 This engine stores no accounts. Sign-in is proxied to **Citra-User-Service**,
-which owns users, passwords, orgs, departments and roles. Point `USER_SERVICE_URL`
-at it, and set `JWT_SECRET` to the **same value that service uses** — it issues
+which owns users, passwords, orgs, departments and roles — and the quickstart
+ships one, built from the `citra-common` submodule. The first account is seeded
+on every `up` by the one-shot `citra-user-service-init` container from
+`ADMIN_EMAIL` / `ADMIN_PASSWORD` in `.env` (idempotent — re-running resets the
+password to the `.env` value). There is no public sign-up; create further
+accounts with `create-admin.js` inside the user-service container.
+
+Pointing at an EXISTING Citra-User-Service instead? Set `USER_SERVICE_URL` to
+it, and set `JWT_SECRET` to the **same value that service uses** — it issues
 the token and this service verifies it, so a mismatch means login succeeds and
 every subsequent request returns 401.
-
-There is no public sign-up, and no way to create an account from here. Ask an
-admin on Citra-User-Service.
 
 ## No Docker?
 
@@ -67,6 +72,7 @@ See [Running from source](#running-from-source) below. You will need Python
 | `citra-flows-ui` | The web app (nginx serving the Expo web build) |
 | `citra-workflow` | The API — auth, CRUD, and enqueuing runs |
 | `citra-worker` | **Executes runs** and owns the cron scheduler |
+| `citra-user-service` + `-init` | Sign-in: owns accounts, issues tokens; `-init` seeds the first account |
 | `mongodb` | Workflow definitions, run history, users |
 | `redis` | Cache and the scheduler's leader-election lock |
 | `queue-redis` | The durable job queue (Redis Streams) |

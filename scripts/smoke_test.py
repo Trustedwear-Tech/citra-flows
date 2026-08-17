@@ -70,7 +70,7 @@ def load_env() -> dict:
     """Read .env, falling back to the shipped template."""
     path = REPO_ROOT / ".env"
     if not path.exists():
-        path = REPO_ROOT / "config" / ".env.local"
+        path = REPO_ROOT / ".env.example"
         print(f"{YELLOW}No .env found; reading defaults from {path.name}{RESET}")
     env = {}
     for line in path.read_text(encoding="utf-8").splitlines():
@@ -106,8 +106,8 @@ def main() -> int:
     env = load_env()
     port = env.get("FLOWS_API_PORT", "9200")
     base = os.environ.get("FLOWS_API_BASE", f"http://localhost:{port}")
-    email = env.get("WORKFLOW_BOOTSTRAP_EMAIL", "admin@example.com")
-    password = env.get("WORKFLOW_BOOTSTRAP_PASSWORD", "change-me-locally")
+    email = env.get("ADMIN_EMAIL", "admin@citra-ai.com")
+    password = env.get("ADMIN_PASSWORD", "change-me-locally")
 
     print(f"\nCitra Flows smoke test -> {base}\n")
 
@@ -123,8 +123,9 @@ def main() -> int:
                               body={"email": email, "password": password})
     if status != 200 or not (payload or {}).get("token"):
         fail(f"sign-in failed for {email} (HTTP {status}): {(payload or {}).get('detail')}")
-        info("The first account is created only when the user collection is EMPTY.")
-        info("After changing WORKFLOW_BOOTSTRAP_*, run `make destroy && make up`.")
+        info("The account comes from ADMIN_EMAIL / ADMIN_PASSWORD in .env, seeded by")
+        info("the citra-user-service-init container. After changing them, re-run")
+        info("`docker compose -f docker-compose.quickstart.yml up -d` to re-seed.")
         return report()
     token = payload["token"]
     ok(f"signed in as {email}")

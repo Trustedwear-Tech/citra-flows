@@ -64,7 +64,9 @@ else
   cp .env.example "$ENV_FILE"
   set_key JWT_SECRET       "$(rand)"
   set_key MONGODB_PASSWORD "$(rand)"
-  ok ".env created with freshly generated JWT_SECRET and MONGODB_PASSWORD"
+  # Short on purpose: it is typed into a login form, and it is printed below.
+  set_key ADMIN_PASSWORD   "$(rand | cut -c1-12)"
+  ok ".env created with freshly generated JWT_SECRET, MONGODB_PASSWORD and ADMIN_PASSWORD"
 fi
 
 # -- 2. model access ----------------------------------------------------------
@@ -88,12 +90,25 @@ if [ -z "${current_key}" ]; then
 fi
 
 # -- 3. bring it up -----------------------------------------------------------
+# The user service is built out of the citra-common submodule; a clone made
+# without --recurse-submodules has an empty directory there and the build
+# fails with a missing Dockerfile. Cheap to fix automatically.
+if [ ! -f citra-common/Citra-User-Service/package.json ]; then
+  say "Fetching the citra-common submodule (bundled user service)"
+  git submodule update --init
+fi
+
 say "Starting the stack"
-echo "  Flows provisions its OWN Mongo, Redis and MinIO (docker-compose.infra.yml)."
+echo "  Flows provisions its OWN Mongo, Redis, MinIO and user service"
+echo "  (docker-compose.infra.yml + docker-compose.quickstart.yml)."
 echo "  To run against an existing Citra-AI deployment's stores instead, stop here"
 echo "  and use docker-compose.shared.yml — see its header."
-make up
+# Not `make up`: make is usually absent on Windows, and this script must work
+# everywhere the README sends people. This is exactly what `make up` runs.
+docker compose -f docker-compose.quickstart.yml up -d --build --wait \
+  citra-workflow citra-worker citra-flows-ui
 
 say "Done"
-echo "  UI:      http://localhost:8088"
-echo "  Verify:  make smoke"
+echo "  UI:       http://localhost:${FLOWS_UI_PORT:-8088}"
+echo "  Sign in:  $(grep -m1 '^ADMIN_EMAIL=' "$ENV_FILE" | cut -d= -f2-)  /  $(grep -m1 '^ADMIN_PASSWORD=' "$ENV_FILE" | cut -d= -f2-)"
+echo "  Verify:   python scripts/smoke_test.py"

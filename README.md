@@ -160,9 +160,10 @@ web UI, and the worker that executes runs. The API only enqueues a run; without
 a worker, every run sits in `queued` while the stack reports itself healthy.
 
 Sign-in is required rather than optional: workflows, runs and saved connections
-belong to a user, and every API call is authorised on that identity. The first
-account is created once at startup from `WORKFLOW_BOOTSTRAP_*`; there is no
-public sign-up.
+belong to a user, and every API call is authorised on that identity. Accounts
+live in **Citra-User-Service**, which the quickstart stack bundles (from the
+`citra-common` submodule); the first account is seeded from
+`ADMIN_EMAIL` / `ADMIN_PASSWORD` in `.env`. There is no public sign-up.
 
 ## Architecture
 
