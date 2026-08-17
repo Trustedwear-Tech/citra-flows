@@ -169,7 +169,10 @@ a real deployment needs that isn't here yet.
 
 Business Source License 1.1. See [`LICENSE`](LICENSE) and [`NOTICE`](NOTICE).
 Non-production use is granted; production use needs a commercial licence until
-the Change Date, after which this converts to Apache-2.0.
+the Change Date — **2030-08-09** — after which this converts to Apache-2.0
+automatically, with no action required from us and no way for us to withdraw
+it. That is four years from the date this repository was first published
+(2026-08-09), which is the maximum BSL 1.1 permits.
 
 The `citra-common` submodule is separate and is Apache-2.0 — see its own
 LICENSE and NOTICE.
