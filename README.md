@@ -30,15 +30,47 @@ Then open <http://localhost:8088>. Full guide: [`INSTALL.md`](INSTALL.md).
 
 The point of the product is how short that loop is.
 
+
+<p align="center">
+  <img alt="The Citra Flows landing page: AI-authored workflow automation you run on your own infrastructure"
+       src="assets/screens/00-landing.png" width="100%">
+</p>
+
+<p align="center"><i>Self-hosted, on your own models. Nothing leaves your network.</i></p>
+
 ### 1. Draft it by describing it
 
 Open the AI panel on the canvas and say what you want:
+
+
+<p align="center">
+  <img alt="The workflow builder with a plain-English brief typed into the AI assistant"
+       src="assets/screens/04-brief.png" width="100%">
+</p>
+
+<p align="center"><i>The brief, in the box. Typed nodes on the left — the assistant assembles from these, it cannot invent one.</i></p>
 
 > *Every morning, pull yesterday's failed payments from Postgres, ask the model
 > which are worth retrying, write those to a sheet and email me the rest.*
 
 You get a real graph — nodes, edges, config — not a suggestion to copy out.
 Three things make it trustworthy rather than a party trick:
+
+
+<p align="center">
+  <img alt="The assistant's proposed workflow: 11 nodes and 12 edges, with a setup-gaps panel and an Apply to Canvas button"
+       src="assets/screens/05-proposal.png" width="100%">
+</p>
+
+<p align="center"><i>What comes back is a <b>plan</b>, not a fait accompli: every node listed, and — under <i>Before this can run</i> — the SQL connection it needs and does not have. It tells you the workflow cannot run yet rather than producing something that looks finished and fails at 7am.</i></p>
+
+
+<p align="center">
+  <img alt="The applied workflow on the canvas: Weekday 7am trigger, Pull Vendor Invoices, Compute Variance, Split, Flag mismatches, Email Approver"
+       src="assets/screens/06-workflow.png" width="100%">
+</p>
+
+<p align="center"><i>After <b>Apply to Canvas</b>. Trigger, source, processor, branch and outputs — each one a typed node you can open and edit. The assistant drafted it; from here it is yours.</i></p>
 
 - **It can only use nodes that exist.** The system prompt is built per request
   from the live node registry, so the model has no vocabulary for a node the
