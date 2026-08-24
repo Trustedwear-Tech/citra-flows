@@ -24,6 +24,19 @@ python scripts/smoke_test.py     # signs in, runs a workflow, asserts it complet
 
 Then open <http://localhost:8088>. Full guide: [`INSTALL.md`](INSTALL.md).
 
+## Support this project
+
+Citra Flows is Apache-2.0 and free to run on your own infrastructure, forever.
+Sponsorship funds maintenance, the documentation, and the hosted demo people try
+before they self-host.
+
+**[→ Support this project](https://rzp.io/rzp/Yp92GE2l)**
+
+<sub>Contributions go to Trustedwear Tech Private Limited, which maintains this
+project. They are not tax-exempt donations, and they buy no licence, warranty,
+support entitlement or influence over the roadmap — the project stays
+Apache-2.0 either way.</sub>
+
 ---
 
 ## Draft → debug → ship
