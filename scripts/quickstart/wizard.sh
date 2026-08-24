@@ -89,6 +89,26 @@ if [ -z "${current_key}" ]; then
   fi
 fi
 
+# A key alone is not a working configuration: the assistant resolves a model per
+# tier and errors out when the name is empty, so an install with a key and no
+# model fails on the first thing anyone does with it.
+#
+# Checked OUTSIDE the key prompt above, because that prompt only runs when no
+# key is present. Anyone arriving with a key already set -- a re-run, a copied
+# .env, a hand-edited file -- skipped the block entirely and never got a model,
+# which is exactly the install that then fails.
+#
+# Only filled when BLANK. A value already there -- shipped in .env.example, or
+# one you chose yourself -- is used as it stands and never overwritten.
+current_model="$(grep -m1 '^LLM_MODEL=' "$ENV_FILE" | cut -d= -f2- || true)"
+if [ -z "${current_model}" ]; then
+  set_key LLM_MODEL "deepseek/deepseek-v4-pro:nitro"
+  set_key LLM_SMALL_MODEL "deepseek/deepseek-v4-pro:nitro"
+  ok "model set to deepseek/deepseek-v4-pro:nitro"
+else
+  ok "model: ${current_model} (kept)"
+fi
+
 # -- 3. bring it up -----------------------------------------------------------
 # The user service is built out of the citra-common submodule; a clone made
 # without --recurse-submodules has an empty directory there and the build
