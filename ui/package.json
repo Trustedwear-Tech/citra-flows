@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "description": "Web UI for the Citra Flows workflow engine — landing, sign-in, and the workflow builder.",
-  "license": "BUSL-1.1",
+  "license": "Apache-2.0",
   "main": "index.js",
   "scripts": {
     "start": "expo start",
