@@ -10,7 +10,7 @@
 """Stamp every file WE wrote with the Apache-2.0 notice -- and nothing else.
 
 Borrowed from citra-decision-system, which uses the same licence and the same
-per-release Change Date; the exclusion lists below are this repository's own.
+exclusion lists below are this repository's own.
 
 The tool this replaces walked the filesystem with `find`. Run in the tree it
 was written for it reported 6,079 files missing headers when only 979 were
@@ -27,7 +27,7 @@ ours, and we do not touch it. That single decision is the point of this script.
 
 The old header was also wrong on its face: it said PROPRIETARY / all rights
 reserved / NOT an open-source grant, in a repository licensed Apache-2.0 with an
-explicit non-production grant. Two contradictory statements of terms invite an
+explicit grant. Two contradictory statements of terms invite an
 ambiguity argument, and ambiguity is construed against its author. The header
 below states the actual licence, with the registered SPDX id that scanners
 recognise.
@@ -99,7 +99,7 @@ EXCLUDE_EXACT = set()
 EXCLUDE_PATTERNS = [
     # citra-common is an Apache-2.0 SUBMODULE: `git ls-files` reports only the
     # gitlink (a directory, so `is_file()` already skips it), but if it is ever
-    # deinited and vendored as real files, stamping BUSL over its Apache grant
+    # deinited and vendored as real files, stamping our header over its own Apache grant
     # is the same ownership-claim mistake this script exists to avoid.
     re.compile(r"^citra-common/"),
     re.compile(r"(^|/)node_modules/"),
@@ -146,7 +146,11 @@ LEGACY_SCAN_LINES = 12
 # header in a file we happen to track is never rewritten.
 OURS_RE = re.compile(r"Trustedwear Tech Private Limited|Citra AI \(https://github\.com/Citra-AI\)")
 OUR_SPDX_RE = re.compile(r"SPDX-License-Identifier:\s*(Apache-2\.0|BUSL-1\.1|LicenseRef-Citra-AI)")
-HEADER_LAST_LINE = "See LICENSE at the repository root"
+# The sentinel that marks where a header ENDS. It must be a substring of the
+# LAST line of HEADER — when the header body changed to Apache-2.0 this was
+# left pointing at the old BSL closing line, so header_span() stopped finding
+# the end of a header and --rewrite mangled files instead of no-oping.
+HEADER_LAST_LINE = "http://www.apache.org/licenses/LICENSE-2.0"
 
 
 def header_span(lines: list[str], style) -> tuple[int, int] | None:
