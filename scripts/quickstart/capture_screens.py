@@ -1,3 +1,11 @@
+# Copyright (c) 2026 Trustedwear Tech Private Limited (https://citra-ai.com)
+# Author: Rohit Kumar Chandan
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License"); you may not
+# use this file except in compliance with the License. You may obtain a copy of
+# the License at http://www.apache.org/licenses/LICENSE-2.0
+
 """Capture citra-flows: landing, workflow list, the AI building a workflow, the graph.
 
 Runs on the host at 1440x900 @2x. This UI is ordinary React with real buttons,
