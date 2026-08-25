@@ -53,7 +53,7 @@ ENV PYTHONPATH=/app:/app/citra-workflow:/app/Citra-Worker
 # Worker's own files (queue.py, registry.py, worker.py, handlers/).
 COPY Citra-Worker/requirements.txt /app/Citra-Worker/requirements.txt
 WORKDIR /app/Citra-Worker
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --retries 10 --timeout 60 --no-cache-dir -r requirements.txt
 
 COPY Citra-Worker /app/Citra-Worker
 

@@ -47,7 +47,7 @@ COPY citra-common/citra-llm           /app/citra-llm
 # Copy this service's requirements and install
 COPY citra-workflow/requirements.txt /app/citra-workflow/requirements.txt
 WORKDIR /app/citra-workflow
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --retries 10 --timeout 60 --no-cache-dir -r requirements.txt
 
 # Copy the citra-workflow source LAST so deps stay cached on code-only edits
 COPY citra-workflow /app/citra-workflow

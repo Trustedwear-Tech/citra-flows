@@ -101,6 +101,17 @@ services:
       - -c
       - |
         set -e
+        # service_healthy only proves MinIO answered its healthcheck; on a
+        # loaded machine it can pass that and still refuse the next connection.
+        # This ran ONCE with restart "no", so a single failure left the bucket
+        # missing and the app failing later on uploads, far from the cause.
+        for i in $$(seq 1 30); do
+          if mc alias set local http://minio:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD" >/dev/null 2>&1; then
+            break
+          fi
+          echo "[minio-init] waiting for minio ($$i/30)"
+          sleep 2
+        done
         mc alias set local http://minio:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD"
         mc mb --ignore-existing "local/$$BUCKET_NAME"
         echo "[minio-init] bucket '$$BUCKET_NAME' ready"

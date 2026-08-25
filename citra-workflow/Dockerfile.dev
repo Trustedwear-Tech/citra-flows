@@ -48,8 +48,8 @@ COPY citra-common/citra-llm           /app/citra-llm
 COPY citra-workflow/requirements.txt /app/citra-workflow/requirements.txt
 WORKDIR /app/citra-workflow
 RUN --mount=type=cache,target=/root/.cache/pip,sharing=locked \
-    pip install --upgrade pip && \
-    pip install -r requirements.txt
+    pip install --retries 10 --timeout 60 --upgrade pip && \
+    pip install --retries 10 --timeout 60 -r requirements.txt
 
 # Copy the citra-workflow source LAST so deps stay cached on code-only edits
 COPY citra-workflow /app/citra-workflow

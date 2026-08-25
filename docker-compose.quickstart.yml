@@ -129,11 +129,25 @@ services:
     volumes:
       - ./citra-common/Citra-User-Service:/app
       - user_node_modules:/app/node_modules
-    command: ["node", "src/scripts/create-admin.js",
-              "${ADMIN_EMAIL:-admin@citra-ai.com}",
-              "${ADMIN_PASSWORD:-change-me-locally}",
-              "Citra Admin", "--role=super_admin",
-              "--org=${ADMIN_ORG_ID:-local}"]
+    # Retried, because citra-workflow gates on this with
+    # service_completed_successfully: one transient failure here -- Mongo not
+    # quite accepting writes yet, despite user-service reporting healthy --
+    # blocks the ENTIRE stack from starting, and the visible symptom is
+    # citra-workflow never coming up rather than the admin not being created.
+    # create-admin.js is idempotent, so re-running it is safe.
+    entrypoint:
+      - sh
+      - -c
+      - |
+        for i in $$(seq 1 20); do
+          if node src/scripts/create-admin.js                "$${ADMIN_EMAIL:-admin@citra-ai.com}"                "$${ADMIN_PASSWORD:-change-me-locally}"                "Citra Admin" --role=super_admin                "--org=$${ADMIN_ORG_ID:-local}"; then
+            exit 0
+          fi
+          echo "[user-service-init] admin creation failed, retrying ($$i/20)"
+          sleep 3
+        done
+        echo "[user-service-init] could not create the super-admin after 20 attempts" >&2
+        exit 1
     depends_on:
       citra-user-service:
         condition: service_healthy
