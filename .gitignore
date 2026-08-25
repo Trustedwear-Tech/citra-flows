@@ -36,3 +36,11 @@ Thumbs.db
 
 # Logs
 *.log
+
+# AWS deployment. These publish to OUR EC2 estate via SSM and name the
+# instances. Deployment to our infrastructure is not something a self-hoster
+# runs, and this repository is public. Mirrors citra-decision-system.
+**/deploy.sh
+**/deploy.yml
+**/DEPLOY-CHECKLIST.md
+**/docker-compose.aws.yml
