@@ -87,6 +87,22 @@ jobs:
           echo "citra-common is vendored: $n tracked files, no gitlinks."
 
   # ---------------------------------------------------------------------------
+  compose-build:
+    name: Compose Build (what make wizard runs)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the quickstart stack from source
+        run: |
+          # docker-build below builds the PROD Dockerfiles; `make wizard` builds
+          # the .dev ones through this compose file, so those were tested by
+          # nothing. They share one BuildKit pip cache, and building them
+          # CONCURRENTLY is what surfaces a sharing bug -- one image at a time
+          # would not. This job runs the real command with the real parallelism.
+          bash scripts/quickstart/gen-env.sh || cp .env.example .env
+          docker compose -f docker-compose.quickstart.yml build
+
+  # ---------------------------------------------------------------------------
   # Same matrix the release gate uses. Contexts come from
   # docker-compose.quickstart.yml, which is what the wizard actually runs.
   # ---------------------------------------------------------------------------
