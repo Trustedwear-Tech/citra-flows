@@ -10,7 +10,15 @@
 
 # Install Citra Flows
 
-Runs on a laptop. Two commands, any OS:
+Runs on a laptop. Clone it, or download a release — both give an identical,
+self-contained tree, and the release needs no `git` at all:
+
+```bash
+curl -sSL https://github.com/Trustedwear-Tech/citra-flows/archive/refs/tags/v0.2.0.tar.gz | tar xz
+cd citra-flows-0.2.0
+```
+
+Then, two commands, any OS:
 
 ```bash
 cp .env.example .env
