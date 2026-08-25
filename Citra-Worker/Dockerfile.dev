@@ -42,7 +42,7 @@ ENV PYTHONPATH=/app/citra-service:/app/Citra-Worker
 # Worker's own files (queue.py, registry.py, worker.py, handlers/).
 COPY Citra-Worker/requirements.txt /app/Citra-Worker/requirements.txt
 WORKDIR /app/Citra-Worker
-RUN --mount=type=cache,target=/root/.cache/pip \
+RUN --mount=type=cache,target=/root/.cache/pip,sharing=locked \
     pip install --upgrade pip && \
     pip install -r requirements.txt
 

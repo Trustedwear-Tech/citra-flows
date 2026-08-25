@@ -47,7 +47,7 @@ COPY citra-common/citra-llm           /app/citra-llm
 # Copy this service's requirements and install
 COPY citra-workflow/requirements.txt /app/citra-workflow/requirements.txt
 WORKDIR /app/citra-workflow
-RUN --mount=type=cache,target=/root/.cache/pip \
+RUN --mount=type=cache,target=/root/.cache/pip,sharing=locked \
     pip install --upgrade pip && \
     pip install -r requirements.txt
 
