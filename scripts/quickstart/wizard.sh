@@ -23,6 +23,11 @@ REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 ENV_FILE="$REPO_ROOT/.env"
 cd "$REPO_ROOT"
 
+# Before the first question and before .env is written. INSTALL.md claims
+# "Docker is the only prerequisite"; nothing verified even that one.
+. "$REPO_ROOT/scripts/quickstart/preflight.sh"
+preflight || exit 1
+
 say()  { printf '\n\033[1m%s\033[0m\n' "$1"; }
 ok()   { printf '  [ok] %s\n' "$1"; }
 warn() { printf '  [!!] %s\n' "$1"; }
