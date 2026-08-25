@@ -207,7 +207,7 @@ a worker, every run sits in `queued` while the stack reports itself healthy.
 Sign-in is required rather than optional: workflows, runs and saved connections
 belong to a user, and every API call is authorised on that identity. Accounts
 live in **Citra-User-Service**, which the quickstart stack bundles (from the
-`citra-common` submodule); the first account is seeded from
+`citra-common`, vendored into this repository); the first account is seeded from
 `ADMIN_EMAIL` / `ADMIN_PASSWORD` in `.env`. There is no public sign-up.
 
 ## Architecture
@@ -233,7 +233,7 @@ This was previously Business Source License 1.1, which reserved production use.
 That restriction is gone and does not come back: an Apache grant is
 irrevocable.
 
-The `citra-common` submodule is Apache-2.0 too — see its own LICENSE and
+The vendored `citra-common` tree is Apache-2.0 too — see its own LICENSE and
 NOTICE.
 
 Trustedwear Tech Private Limited · contact@citra-ai.com · https://citra-ai.com

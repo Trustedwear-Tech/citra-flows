@@ -10,13 +10,30 @@
 
 # Install Citra Flows
 
-Runs on a laptop. Docker is the only prerequisite — three commands, any OS:
+Runs on a laptop. Two commands, any OS:
 
 ```bash
-git submodule update --init            # citra-common: the bundled user service
 cp .env.example .env
 docker compose -f docker-compose.quickstart.yml up -d --build --wait citra-workflow citra-worker citra-flows-ui
 ```
+
+| Need | Why |
+|------|-----|
+| **Docker Engine 24+** with **Compose v2** | builds and runs everything |
+| **8 GB+ RAM** | the worker plus the data stores |
+| **A model endpoint** | OpenRouter, OpenAI, DeepSeek, Ollama, or your own vLLM |
+| **Internet on first run** | base images and `pip`/`npm` installs |
+| **python3** *(optional)* | only for `scripts/smoke_test.py` — standard library, nothing to install |
+
+You do **not** need Node.js (it runs inside the containers), and `git` only if
+you clone — the release tarball is self-contained. `make wizard` and
+`make install` check all of this first and name whatever is missing before
+writing anything.
+
+> `git submodule update --init` used to be the first command here.
+> `citra-common` is vendored as ordinary files now, so there is nothing to
+> initialise — and a downloaded release, which has no `.git` at all, could
+> never have run it.
 
 (PowerShell: `copy .env.example .env`)
 
@@ -47,7 +64,7 @@ Open the UI:
 
 This engine stores no accounts. Sign-in is proxied to **Citra-User-Service**,
 which owns users, passwords, orgs, departments and roles — and the quickstart
-ships one, built from the `citra-common` submodule. The first account is seeded
+ships one, built from the vendored `citra-common` tree. The first account is seeded
 on every `up` by the one-shot `citra-user-service-init` container from
 `ADMIN_EMAIL` / `ADMIN_PASSWORD` in `.env` (idempotent — re-running resets the
 password to the `.env` value). It is created as **`super_admin`** in the org
@@ -207,7 +224,7 @@ npm run web
 
 The shared libraries (`citra-mongo`, `citra-auth`, `citra-queue`,
 `citra-cache`, `citra-llm`, `citra-service-utils`) live in the `citra-common`
-submodule — run `git submodule update --init` after cloning or the build will
+vendored into this repository as ordinary files, so it builds with no extra step; the build will
 fail with missing paths. They are installed as editable
 sibling packages by those `requirements.txt` files, so an edit to one is picked
 up without reinstalling.
