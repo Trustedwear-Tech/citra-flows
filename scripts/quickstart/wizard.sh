@@ -64,9 +64,19 @@ done
 . "$REPO_ROOT/scripts/quickstart/preflight.sh"
 preflight || exit 1
 
-say()  { printf '\n\033[1m%s\033[0m\n' "$1"; }
-ok()   { printf '  [ok] %s\n' "$1"; }
-warn() { printf '  [!!] %s\n' "$1"; }
+# Colours: green = success, red = failure, yellow = caution. Only on a
+# terminal — piped/CI output and NO_COLOR stay plain text.
+if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then
+  C_G=$'\033[32m'; C_R=$'\033[31m'; C_Y=$'\033[33m'; C_B=$'\033[1m'; C_0=$'\033[0m'
+else
+  C_G=""; C_R=""; C_Y=""; C_B=""; C_0=""
+fi
+# What this run actually did — printed in the final summary.
+RUN_SUMMARY=""
+did() { RUN_SUMMARY="${RUN_SUMMARY}    - $1\n"; }
+say()  { printf '\n%s%s%s\n' "$C_B" "$1" "$C_0"; }
+ok()   { printf '  %s[ok]%s %s\n' "$C_G" "$C_0" "$1"; }
+warn() { printf '  %s[!!]%s %s\n' "$C_Y" "$C_0" "$1"; }
 # One '*' per character. Shown wherever a secret was entered, so the user can
 # tell that a paste landed — and, via the length, that it landed exactly once.
 mask() { printf '%*s' "${#1}" '' | tr ' ' '*'; }
@@ -84,7 +94,7 @@ trap 'rc=$?; if [ "$rc" -ne 0 ]; then
         word="FAILED"; case "$rc" in 130|143) word="INTERRUPTED";; esac
         printf "%s  %s during: %s (exit %s)\n" "$(date '\''+%Y-%m-%d %H:%M:%S'\'')" "$word" "$CURRENT_STEP" "$rc" >> "$STATE_FILE"
         echo "" >&2
-        echo "  [!!] $word during: $CURRENT_STEP. Completed steps are kept —" >&2
+        echo "  ${C_R}[!!] $word during: $CURRENT_STEP.${C_0} Completed steps are kept —" >&2
         echo "       just re-run the wizard; it resumes from here." >&2
       fi' EXIT
 # Ctrl-C / kill: without these, bash skips the EXIT trap on a fatal signal
@@ -180,6 +190,7 @@ if [ "$FRESH" = 1 ]; then
   # the .env so the new log starts at zero and cannot claim finished steps.
   [ -f "$STATE_FILE" ] && mv "$STATE_FILE" "$STATE_FILE.bak.$(date +%Y%m%d-%H%M%S)"
   ckpt "fresh cleanup — volumes deleted, previous .env and state log archived"
+  did "full cleanup: stack + volumes deleted, previous .env archived"
 fi
 
 progress_report
@@ -188,12 +199,14 @@ progress_report
 CURRENT_STEP=".env creation"
 if [ -f "$ENV_FILE" ]; then
   ok "Found an existing .env — keeping it (values you set are preserved)."
+  did ".env kept — your existing values preserved"
 else
   cp .env.example "$ENV_FILE"
   set_key JWT_SECRET       "$(rand)"
   set_key MONGODB_PASSWORD "$(rand)"
   ok ".env created with freshly generated JWT_SECRET and MONGODB_PASSWORD"
   ckpt ".env created with fresh secrets"
+  did ".env created with freshly generated secrets"
 fi
 
 # -- first account: REQUIRED, and yours ---------------------------------------
@@ -211,12 +224,12 @@ if [ -z "$cur_email" ] || [ -z "$cur_pw" ]; then
     printf '  Admin email (your sign-in id, shaped like x@y.z): '
     if ! read -r cur_email; then
       echo "" >&2
-      echo "  [FAIL] no input available — set ADMIN_EMAIL and ADMIN_PASSWORD in .env and re-run." >&2
+      echo "  ${C_R}[FAIL]${C_0} no input available — set ADMIN_EMAIL and ADMIN_PASSWORD in .env and re-run." >&2
       exit 1
     fi
     case "$cur_email" in
       *@*.*) ;;
-      *) [ -n "$cur_email" ] && echo "  [!!] not an email address"; cur_email="" ;;
+      *) [ -n "$cur_email" ] && echo "  ${C_Y}[!!]${C_0} not an email address"; cur_email="" ;;
     esac
   done
   set_key ADMIN_EMAIL "$cur_email"
@@ -226,12 +239,12 @@ if [ -z "$cur_email" ] || [ -z "$cur_pw" ]; then
     printf '  Admin password (min 8 characters; input hidden): '
     if ! read -rs cur_pw; then
       echo "" >&2
-      echo "  [FAIL] no input available — set ADMIN_PASSWORD in .env and re-run." >&2
+      echo "  ${C_R}[FAIL]${C_0} no input available — set ADMIN_PASSWORD in .env and re-run." >&2
       exit 1
     fi
     echo ""
     if [ "${#cur_pw}" -lt 8 ]; then
-      [ -n "$cur_pw" ] && echo "  [!!] too short — 8 characters minimum (got ${#cur_pw})"
+      [ -n "$cur_pw" ] && echo "  ${C_Y}[!!]${C_0} too short — 8 characters minimum (got ${#cur_pw})"
       cur_pw=""
     fi
   done
@@ -242,6 +255,7 @@ if [ -z "$cur_email" ] || [ -z "$cur_pw" ]; then
   read -r admin_org || admin_org=""
   [ -n "$admin_org" ] && set_key ADMIN_ORG_ID "$admin_org"
   ckpt "admin credentials set (${cur_email})"
+  did "admin credentials captured for ${cur_email}"
 fi
 
 # -- 2. model access ----------------------------------------------------------
@@ -262,8 +276,10 @@ if [ -z "${current_key}" ]; then
     set_key LLM_SMALL_API_KEY "$llm_key"
     ok "model key stored: $(mask "$llm_key")  (${#llm_key} characters)"
     ckpt "model key stored"
+    did "model API key stored"
   else
     warn "no model key set — AI-assisted steps will fail until LLM_API_KEY is filled in"
+    did "model key skipped — AI-assisted steps will error until LLM_API_KEY is set"
   fi
 fi
 
@@ -284,6 +300,7 @@ if [ -z "${current_model}" ]; then
   set_key LLM_SMALL_MODEL "deepseek/deepseek-v4-pro:nitro"
   ok "model set to deepseek/deepseek-v4-pro:nitro"
   ckpt "model configured"
+  did "model set to the quick-start default"
 else
   ok "model: ${current_model} (kept)"
 fi
@@ -296,7 +313,7 @@ CURRENT_STEP="tree completeness check"
 # there anyway. If it is missing, the tree itself is broken: say so, rather
 # than let the image build die later on a missing Dockerfile.
 if [ ! -f citra-common/Citra-User-Service/package.json ]; then
-  echo "  [FAIL] citra-common/Citra-User-Service is missing — this tree is incomplete." >&2
+  echo "  ${C_R}[FAIL]${C_0} citra-common/Citra-User-Service is missing — this tree is incomplete." >&2
   echo "         Re-clone the repository, or re-download the release tarball." >&2
   exit 1
 fi
@@ -312,6 +329,7 @@ CURRENT_STEP="stack up (docker compose up --build --wait)"
 docker compose -f docker-compose.quickstart.yml up -d --build --wait \
   citra-workflow citra-worker citra-flows-ui
 ckpt "stack up — services healthy"
+did "stack built and started — all services healthy"
 CURRENT_STEP="done"
 
 # Every value from .env, not the shell environment: FLOWS_UI_PORT is set in
@@ -322,9 +340,13 @@ ui_port="$(envval FLOWS_UI_PORT)";  ui_port="${ui_port:-8088}"
 api_port="$(envval FLOWS_API_PORT)"; api_port="${api_port:-9200}"
 org_id="$(envval ADMIN_ORG_ID)";    org_id="${org_id:-local}"
 
-say "Done — Citra Flows is running"
-echo "  UI:        http://localhost:${ui_port}"
-echo "  API docs:  http://localhost:${api_port}/docs"
+say "${C_G}Done — Citra Flows is running${C_0}"
+echo ""
+echo "  What happened in this run:"
+printf '%b' "${RUN_SUMMARY:-    - nothing to change — everything was already in place\n}"
+echo ""
+echo "  ${C_G}Open the UI:${C_0}   http://localhost:${ui_port}"
+echo "  API docs:      http://localhost:${api_port}/docs"
 echo ""
 admin_pw="$(envval ADMIN_PASSWORD)"
 echo "  Sign in:   $(envval ADMIN_EMAIL)  /  $(mask "$admin_pw") (${#admin_pw} characters)"
@@ -333,8 +355,13 @@ echo "             run and connection you create is scoped to that org."
 echo "             The password is the one you chose; it is never printed."
 echo "             Both live in .env (grep ^ADMIN_ .env)."
 echo ""
-echo "  No public sign-up: add teammates from this account — see INSTALL.md,"
-echo "  section 'Sign in'."
-echo ""
-echo "  Verify:    python scripts/smoke_test.py"
+echo "  What next:"
+echo "    1. Verify end to end:  python scripts/smoke_test.py"
+echo "       (signs in, authors a workflow, runs it, asserts it completed)"
+echo "    2. Open the UI, sign in, and hit 'New Workflow' — the AI panel"
+echo "       drafts your first pipeline from a plain-English description."
+echo "    3. Add teammates from your account (no public sign-up) —"
+echo "       INSTALL.md, section 'Sign in'."
+echo "    4. Re-run this wizard any time to resume or change values;"
+echo "       --fresh starts over, --help explains both."
 ckpt "done — install complete"
