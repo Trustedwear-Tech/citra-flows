@@ -71,6 +71,59 @@ warn() { printf '  [!!] %s\n' "$1"; }
 # tell that a paste landed — and, via the length, that it landed exactly once.
 mask() { printf '%*s' "${#1}" '' | tr ' ' '*'; }
 
+# --- Checkpoints -------------------------------------------------------------
+# Every completed step is appended to .wizard-state.log (gitignored), and a
+# failing run records the step it died in — so the next run can say exactly
+# where the last one got to. The log is a RECORD, not an authority: the
+# progress report re-verifies every step against .env and Docker, because a
+# log that outlives a manual `docker compose down -v` would otherwise lie.
+STATE_FILE="$REPO_ROOT/.wizard-state.log"
+CURRENT_STEP="preflight"
+ckpt() { printf '%s  done: %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$1" >> "$STATE_FILE"; }
+trap 'rc=$?; if [ "$rc" -ne 0 ]; then
+        word="FAILED"; case "$rc" in 130|143) word="INTERRUPTED";; esac
+        printf "%s  %s during: %s (exit %s)\n" "$(date '\''+%Y-%m-%d %H:%M:%S'\'')" "$word" "$CURRENT_STEP" "$rc" >> "$STATE_FILE"
+        echo "" >&2
+        echo "  [!!] $word during: $CURRENT_STEP. Completed steps are kept —" >&2
+        echo "       just re-run the wizard; it resumes from here." >&2
+      fi' EXIT
+# Ctrl-C / kill: without these, bash skips the EXIT trap on a fatal signal
+# and the interruption would never reach the state log.
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+stack_running() {
+  docker compose -f docker-compose.quickstart.yml ps -q citra-workflow 2>/dev/null | grep -q .
+}
+progress_report() {
+  local s_env="pending" s_adm="pending" s_mod="pending" s_stk="pending"
+  [ -f "$ENV_FILE" ] && s_env="done   "
+  if [ -f "$ENV_FILE" ] \
+     && [ -n "$(grep -m1 '^ADMIN_EMAIL=' "$ENV_FILE" | cut -d= -f2- | tr -d '\r')" ] \
+     && [ -n "$(grep -m1 '^ADMIN_PASSWORD=' "$ENV_FILE" | cut -d= -f2- | tr -d '\r')" ]; then
+    s_adm="done   "
+  fi
+  if [ -f "$ENV_FILE" ] && [ -n "$(grep -m1 '^LLM_MODEL=' "$ENV_FILE" | cut -d= -f2- | tr -d '\r')" ]; then
+    s_mod="done   "
+  fi
+  stack_running && s_stk="running"
+  echo ""
+  echo "  Progress — verified against .env and Docker, not just the log:"
+  echo "    [${s_env}] .env with generated secrets"
+  echo "    [${s_adm}] admin credentials (ADMIN_EMAIL / ADMIN_PASSWORD)"
+  echo "    [${s_mod}] model configuration"
+  echo "    [${s_stk}] stack containers"
+  if [ -f "$STATE_FILE" ]; then
+    echo "    log: .wizard-state.log — last entry:"
+    tail -1 "$STATE_FILE" | sed 's/^/      /'
+    case "$(tail -1 "$STATE_FILE")" in
+      *FAILED*|*INTERRUPTED*) echo "    Resuming from that step now." ;;
+    esac
+  fi
+  echo "  'pending' runs now; 'done' is kept as it is. The stack step always"
+  echo "  reconciles (fast when nothing changed), so a config edit is applied."
+}
+
 # A random secret. openssl where available, else python3, else /dev/urandom —
 # no silent fallback to a weak value: if none of the three work, we stop.
 rand() {
@@ -111,8 +164,11 @@ if [ "$FRESH" = 1 ]; then
   read -r ans || ans=""
   case "$ans" in
     y|Y|yes|YES) ;;
-    *) echo "  Aborted — nothing was touched."; exit 1 ;;
+    # A declined confirmation is a decision, not a failure — disarm the
+    # failure trap so the state log does not record it as one.
+    *) trap - EXIT; echo "  Aborted — nothing was touched."; exit 1 ;;
   esac
+  CURRENT_STEP="fresh cleanup (down -v)"
   docker compose -f docker-compose.quickstart.yml down -v --remove-orphans
   ok "stack stopped, volumes removed"
   if [ -f "$ENV_FILE" ]; then
@@ -120,9 +176,16 @@ if [ "$FRESH" = 1 ]; then
     mv "$ENV_FILE" "$bak"
     ok "old .env moved to ${bak##*/} (restore it with: mv ${bak##*/} .env)"
   fi
+  # The old log describes the install that was just deleted; archive it with
+  # the .env so the new log starts at zero and cannot claim finished steps.
+  [ -f "$STATE_FILE" ] && mv "$STATE_FILE" "$STATE_FILE.bak.$(date +%Y%m%d-%H%M%S)"
+  ckpt "fresh cleanup — volumes deleted, previous .env and state log archived"
 fi
 
+progress_report
+
 # -- 1. .env ------------------------------------------------------------------
+CURRENT_STEP=".env creation"
 if [ -f "$ENV_FILE" ]; then
   ok "Found an existing .env — keeping it (values you set are preserved)."
 else
@@ -130,6 +193,7 @@ else
   set_key JWT_SECRET       "$(rand)"
   set_key MONGODB_PASSWORD "$(rand)"
   ok ".env created with freshly generated JWT_SECRET and MONGODB_PASSWORD"
+  ckpt ".env created with fresh secrets"
 fi
 
 # -- first account: REQUIRED, and yours ---------------------------------------
@@ -138,8 +202,9 @@ fi
 # (fresh .env, or an older one), so the wizard never starts a stack that the
 # init container would refuse anyway. A non-interactive run must have set
 # both in .env beforehand — EOF here is a hard stop, not a silent default.
-cur_email="$(grep -m1 '^ADMIN_EMAIL=' "$ENV_FILE" | cut -d= -f2- | tr -d '\r')"
-cur_pw="$(grep -m1 '^ADMIN_PASSWORD=' "$ENV_FILE" | cut -d= -f2- | tr -d '\r')"
+CURRENT_STEP="admin credentials"
+cur_email="$(grep -m1 '^ADMIN_EMAIL=' "$ENV_FILE" | cut -d= -f2- | tr -d '\r' || true)"
+cur_pw="$(grep -m1 '^ADMIN_PASSWORD=' "$ENV_FILE" | cut -d= -f2- | tr -d '\r' || true)"
 if [ -z "$cur_email" ] || [ -z "$cur_pw" ]; then
   say "First account (seeded as super_admin) — required, no defaults"
   while [ -z "$cur_email" ]; do
@@ -176,9 +241,11 @@ if [ -z "$cur_email" ] || [ -z "$cur_pw" ]; then
   printf '  Org id [local]: '
   read -r admin_org || admin_org=""
   [ -n "$admin_org" ] && set_key ADMIN_ORG_ID "$admin_org"
+  ckpt "admin credentials set (${cur_email})"
 fi
 
 # -- 2. model access ----------------------------------------------------------
+CURRENT_STEP="model configuration"
 # Flows calls an OpenAI-compatible endpoint. Without a key the stack still comes
 # up; only the AI-assisted steps fail, and they fail loudly, so this is a prompt
 # rather than a hard requirement.
@@ -194,6 +261,7 @@ if [ -z "${current_key}" ]; then
     set_key LLM_API_KEY "$llm_key"
     set_key LLM_SMALL_API_KEY "$llm_key"
     ok "model key stored: $(mask "$llm_key")  (${#llm_key} characters)"
+    ckpt "model key stored"
   else
     warn "no model key set — AI-assisted steps will fail until LLM_API_KEY is filled in"
   fi
@@ -215,11 +283,13 @@ if [ -z "${current_model}" ]; then
   set_key LLM_MODEL "deepseek/deepseek-v4-pro:nitro"
   set_key LLM_SMALL_MODEL "deepseek/deepseek-v4-pro:nitro"
   ok "model set to deepseek/deepseek-v4-pro:nitro"
+  ckpt "model configured"
 else
   ok "model: ${current_model} (kept)"
 fi
 
 # -- 3. bring it up -----------------------------------------------------------
+CURRENT_STEP="tree completeness check"
 # citra-common is vendored as ordinary tracked files (the submodule is gone),
 # so it is present in every clone AND every release tarball — a tarball has no
 # .git, so the old `git submodule update --init` repair could never have run
@@ -238,13 +308,16 @@ echo "  To run against an existing Citra-AI deployment's stores instead, stop he
 echo "  and use docker-compose.shared.yml — see its header."
 # Not `make up`: make is usually absent on Windows, and this script must work
 # everywhere the README sends people. This is exactly what `make up` runs.
+CURRENT_STEP="stack up (docker compose up --build --wait)"
 docker compose -f docker-compose.quickstart.yml up -d --build --wait \
   citra-workflow citra-worker citra-flows-ui
+ckpt "stack up — services healthy"
+CURRENT_STEP="done"
 
 # Every value from .env, not the shell environment: FLOWS_UI_PORT is set in
 # the file, so $FLOWS_UI_PORT here would print the default even after the
 # user changed the port.
-envval() { grep -m1 "^$1=" "$ENV_FILE" | cut -d= -f2- | tr -d '\r'; }
+envval() { grep -m1 "^$1=" "$ENV_FILE" | cut -d= -f2- | tr -d '\r' || true; }
 ui_port="$(envval FLOWS_UI_PORT)";  ui_port="${ui_port:-8088}"
 api_port="$(envval FLOWS_API_PORT)"; api_port="${api_port:-9200}"
 org_id="$(envval ADMIN_ORG_ID)";    org_id="${org_id:-local}"
@@ -264,3 +337,4 @@ echo "  No public sign-up: add teammates from this account — see INSTALL.md,"
 echo "  section 'Sign in'."
 echo ""
 echo "  Verify:    python scripts/smoke_test.py"
+ckpt "done — install complete"

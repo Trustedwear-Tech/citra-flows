@@ -44,3 +44,6 @@ Thumbs.db
 **/deploy.yml
 **/DEPLOY-CHECKLIST.md
 **/docker-compose.aws.yml
+
+# Setup wizard checkpoint log (and its --fresh archives)
+.wizard-state.log*
