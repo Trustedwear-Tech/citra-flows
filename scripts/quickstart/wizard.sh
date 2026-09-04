@@ -9,6 +9,10 @@
 
 # Citra Flows — guided first-run setup.
 #
+#   scripts/quickstart/wizard.sh            install, or resume/repair a stack
+#   scripts/quickstart/wizard.sh --fresh    full cleanup, then set up from nothing
+#   scripts/quickstart/wizard.sh --help     what each mode does
+#
 # Creates .env with FRESH random secrets, then brings the stack up. The point of
 # the fresh secrets is that .env.example ships a fixed JWT_SECRET: it is fine as
 # a placeholder, but every install that copies it verbatim shares one signing
@@ -23,6 +27,38 @@ REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 ENV_FILE="$REPO_ROOT/.env"
 cd "$REPO_ROOT"
 
+usage() {
+  cat <<'EOF'
+Citra Flows — guided setup wizard.
+
+Usage:  scripts/quickstart/wizard.sh [--fresh] [-h|--help]
+
+Without options — install, or RESUME:
+  Idempotent, safe to re-run any time (after a reboot, a .env edit, or a
+  failed first attempt). An existing .env is kept exactly as-is — secrets,
+  keys and credentials you set are preserved — and you are prompted only
+  for required values that are still missing. Containers are started or
+  updated in place; the data in the Mongo/Redis/MinIO volumes survives.
+
+--fresh — full cleanup, then set up from nothing:
+  Stops the stack and DELETES its volumes — every workflow, run, account
+  and file output in this install. .env is moved aside to
+  .env.bak.<timestamp> (never deleted), and the normal setup then runs,
+  asking everything again. Asks for confirmation before touching anything.
+
+-h, --help — this text.
+EOF
+}
+
+FRESH=0
+for arg in "$@"; do
+  case "$arg" in
+    -h|--help) usage; exit 0 ;;
+    --fresh)   FRESH=1 ;;
+    *) echo "unknown option: $arg" >&2; echo "" >&2; usage >&2; exit 2 ;;
+  esac
+done
+
 # Before the first question and before .env is written. INSTALL.md claims
 # "Docker is the only prerequisite"; nothing verified even that one.
 . "$REPO_ROOT/scripts/quickstart/preflight.sh"
@@ -31,6 +67,9 @@ preflight || exit 1
 say()  { printf '\n\033[1m%s\033[0m\n' "$1"; }
 ok()   { printf '  [ok] %s\n' "$1"; }
 warn() { printf '  [!!] %s\n' "$1"; }
+# One '*' per character. Shown wherever a secret was entered, so the user can
+# tell that a paste landed — and, via the length, that it landed exactly once.
+mask() { printf '%*s' "${#1}" '' | tr ' ' '*'; }
 
 # A random secret. openssl where available, else python3, else /dev/urandom —
 # no silent fallback to a weak value: if none of the three work, we stop.
@@ -61,6 +100,27 @@ set_key() {
 }
 
 say "Citra Flows setup"
+
+# -- 0. --fresh: cleanup before anything else ---------------------------------
+if [ "$FRESH" = 1 ]; then
+  say "Fresh setup — full cleanup first"
+  echo "  This STOPS the stack and DELETES its volumes: every workflow, run,"
+  echo "  account and file output in this install is gone for good."
+  echo "  .env is moved aside to .env.bak.<timestamp>, not deleted."
+  printf '  Continue? [y/N]: '
+  read -r ans || ans=""
+  case "$ans" in
+    y|Y|yes|YES) ;;
+    *) echo "  Aborted — nothing was touched."; exit 1 ;;
+  esac
+  docker compose -f docker-compose.quickstart.yml down -v --remove-orphans
+  ok "stack stopped, volumes removed"
+  if [ -f "$ENV_FILE" ]; then
+    bak="$ENV_FILE.bak.$(date +%Y%m%d-%H%M%S)"
+    mv "$ENV_FILE" "$bak"
+    ok "old .env moved to ${bak##*/} (restore it with: mv ${bak##*/} .env)"
+  fi
+fi
 
 # -- 1. .env ------------------------------------------------------------------
 if [ -f "$ENV_FILE" ]; then
@@ -96,17 +156,21 @@ if [ -z "$cur_email" ] || [ -z "$cur_pw" ]; then
   done
   set_key ADMIN_EMAIL "$cur_email"
   while [ -z "$cur_pw" ]; do
-    printf '  Admin password (min 8 characters): '
-    if ! read -r cur_pw; then
+    # -s: nothing echoes while typing or pasting. The masked line printed
+    # after is how you verify a paste landed, and landed exactly once.
+    printf '  Admin password (min 8 characters; input hidden): '
+    if ! read -rs cur_pw; then
       echo "" >&2
       echo "  [FAIL] no input available — set ADMIN_PASSWORD in .env and re-run." >&2
       exit 1
     fi
+    echo ""
     if [ "${#cur_pw}" -lt 8 ]; then
-      [ -n "$cur_pw" ] && echo "  [!!] too short — 8 characters minimum"
+      [ -n "$cur_pw" ] && echo "  [!!] too short — 8 characters minimum (got ${#cur_pw})"
       cur_pw=""
     fi
   done
+  ok "password captured: $(mask "$cur_pw")  (${#cur_pw} characters)"
   set_key ADMIN_PASSWORD "$cur_pw"
   echo "  Every workflow, run and connection is scoped to an org id."
   printf '  Org id [local]: '
@@ -123,12 +187,13 @@ if [ -z "${current_key}" ]; then
   say "Model access"
   echo "  Flows uses an OpenAI-compatible endpoint for its AI-assisted steps."
   echo "  Leave blank to skip — the stack runs, those steps will error until set."
-  printf '  LLM_API_KEY: '
-  read -r llm_key || llm_key=""
+  printf '  LLM_API_KEY (input hidden; Enter to skip): '
+  read -rs llm_key || llm_key=""
+  echo ""
   if [ -n "$llm_key" ]; then
     set_key LLM_API_KEY "$llm_key"
     set_key LLM_SMALL_API_KEY "$llm_key"
-    ok "model key stored"
+    ok "model key stored: $(mask "$llm_key")  (${#llm_key} characters)"
   else
     warn "no model key set — AI-assisted steps will fail until LLM_API_KEY is filled in"
   fi
@@ -155,12 +220,15 @@ else
 fi
 
 # -- 3. bring it up -----------------------------------------------------------
-# The user service is built out of the citra-common submodule; a clone made
-# without --recurse-submodules has an empty directory there and the build
-# fails with a missing Dockerfile. Cheap to fix automatically.
+# citra-common is vendored as ordinary tracked files (the submodule is gone),
+# so it is present in every clone AND every release tarball — a tarball has no
+# .git, so the old `git submodule update --init` repair could never have run
+# there anyway. If it is missing, the tree itself is broken: say so, rather
+# than let the image build die later on a missing Dockerfile.
 if [ ! -f citra-common/Citra-User-Service/package.json ]; then
-  say "Fetching the citra-common submodule (bundled user service)"
-  git submodule update --init
+  echo "  [FAIL] citra-common/Citra-User-Service is missing — this tree is incomplete." >&2
+  echo "         Re-clone the repository, or re-download the release tarball." >&2
+  exit 1
 fi
 
 say "Starting the stack"
@@ -185,11 +253,12 @@ say "Done — Citra Flows is running"
 echo "  UI:        http://localhost:${ui_port}"
 echo "  API docs:  http://localhost:${api_port}/docs"
 echo ""
-echo "  Sign in:   $(envval ADMIN_EMAIL)  /  $(envval ADMIN_PASSWORD)"
+admin_pw="$(envval ADMIN_PASSWORD)"
+echo "  Sign in:   $(envval ADMIN_EMAIL)  /  $(mask "$admin_pw") (${#admin_pw} characters)"
 echo "             seeded as super_admin in org '${org_id}' — every workflow,"
 echo "             run and connection you create is scoped to that org."
-echo "             Credentials are the ones you chose — they live in .env"
-echo "             (grep ^ADMIN_ .env)."
+echo "             The password is the one you chose; it is never printed."
+echo "             Both live in .env (grep ^ADMIN_ .env)."
 echo ""
 echo "  No public sign-up: add teammates from this account — see INSTALL.md,"
 echo "  section 'Sign in'."

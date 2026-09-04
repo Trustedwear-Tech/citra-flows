@@ -37,7 +37,12 @@ cp .env.example .env
 docker compose -f docker-compose.quickstart.yml up -d --build --wait citra-workflow citra-worker citra-flows-ui
 ```
 
-(Or skip the hand-editing: `scripts/quickstart/wizard.sh` asks for them.)
+(Or skip the hand-editing: `scripts/quickstart/wizard.sh` asks for them —
+secrets are typed hidden and echoed back masked, `****` plus a length, so a
+paste is verifiable. Re-running the wizard RESUMES: it keeps `.env` and your
+data and asks only for what is missing. `wizard.sh --fresh` is the opposite —
+full cleanup, volumes deleted, `.env` moved aside — and `wizard.sh --help`
+explains both.)
 
 | Need | Why |
 |------|-----|
