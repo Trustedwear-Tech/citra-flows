@@ -72,6 +72,20 @@ else
   # Short on purpose: it is typed into a login form, and it is printed below.
   set_key ADMIN_PASSWORD   "$(rand | cut -c1-12)"
   ok ".env created with freshly generated JWT_SECRET, MONGODB_PASSWORD and ADMIN_PASSWORD"
+
+  # -- the first account is YOURS -------------------------------------------
+  # Nothing Citra-branded is baked in: the seeded super-admin is the
+  # installer's identity. Blank keeps the neutral defaults from .env.example.
+  # A piped/CI run reads EOF here and keeps the defaults too.
+  say "First account (seeded as super_admin)"
+  echo "  Any address shaped like x@y.z works — it is your sign-in id."
+  printf '  Admin email [admin@example.com]: '
+  read -r admin_email || admin_email=""
+  [ -n "$admin_email" ] && set_key ADMIN_EMAIL "$admin_email"
+  echo "  Every workflow, run and connection is scoped to this org id."
+  printf '  Org id [local]: '
+  read -r admin_org || admin_org=""
+  [ -n "$admin_org" ] && set_key ADMIN_ORG_ID "$admin_org"
 fi
 
 # -- 2. model access ----------------------------------------------------------

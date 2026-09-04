@@ -106,7 +106,7 @@ def main() -> int:
     env = load_env()
     port = env.get("FLOWS_API_PORT", "9200")
     base = os.environ.get("FLOWS_API_BASE", f"http://localhost:{port}")
-    email = env.get("ADMIN_EMAIL", "admin@citra-ai.com")
+    email = env.get("ADMIN_EMAIL", "admin@example.com")
     password = env.get("ADMIN_PASSWORD", "change-me-locally")
 
     print(f"\nCitra Flows smoke test -> {base}\n")
