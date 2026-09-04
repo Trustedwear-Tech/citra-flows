@@ -69,21 +69,46 @@ else
   cp .env.example "$ENV_FILE"
   set_key JWT_SECRET       "$(rand)"
   set_key MONGODB_PASSWORD "$(rand)"
-  # ADMIN_PASSWORD stays the simple default ('admin') so the first sign-in is
-  # frictionless; the Done card below prints it, and the card and .env.example
-  # both say to change it before anyone else can reach the port.
   ok ".env created with freshly generated JWT_SECRET and MONGODB_PASSWORD"
+fi
 
-  # -- the first account is YOURS -------------------------------------------
-  # Nothing Citra-branded is baked in: the seeded super-admin is the
-  # installer's identity. Blank keeps the neutral defaults from .env.example.
-  # A piped/CI run reads EOF here and keeps the defaults too.
-  say "First account (seeded as super_admin)"
-  echo "  Any address shaped like x@y.z works — it is your sign-in id."
-  printf '  Admin email [admin@example.com]: '
-  read -r admin_email || admin_email=""
-  [ -n "$admin_email" ] && set_key ADMIN_EMAIL "$admin_email"
-  echo "  Every workflow, run and connection is scoped to this org id."
+# -- first account: REQUIRED, and yours ---------------------------------------
+# There are NO default credentials, deliberately: a default is a credential
+# every install on the internet shares. Runs whenever either value is missing
+# (fresh .env, or an older one), so the wizard never starts a stack that the
+# init container would refuse anyway. A non-interactive run must have set
+# both in .env beforehand — EOF here is a hard stop, not a silent default.
+cur_email="$(grep -m1 '^ADMIN_EMAIL=' "$ENV_FILE" | cut -d= -f2- | tr -d '\r')"
+cur_pw="$(grep -m1 '^ADMIN_PASSWORD=' "$ENV_FILE" | cut -d= -f2- | tr -d '\r')"
+if [ -z "$cur_email" ] || [ -z "$cur_pw" ]; then
+  say "First account (seeded as super_admin) — required, no defaults"
+  while [ -z "$cur_email" ]; do
+    printf '  Admin email (your sign-in id, shaped like x@y.z): '
+    if ! read -r cur_email; then
+      echo "" >&2
+      echo "  [FAIL] no input available — set ADMIN_EMAIL and ADMIN_PASSWORD in .env and re-run." >&2
+      exit 1
+    fi
+    case "$cur_email" in
+      *@*.*) ;;
+      *) [ -n "$cur_email" ] && echo "  [!!] not an email address"; cur_email="" ;;
+    esac
+  done
+  set_key ADMIN_EMAIL "$cur_email"
+  while [ -z "$cur_pw" ]; do
+    printf '  Admin password (min 8 characters): '
+    if ! read -r cur_pw; then
+      echo "" >&2
+      echo "  [FAIL] no input available — set ADMIN_PASSWORD in .env and re-run." >&2
+      exit 1
+    fi
+    if [ "${#cur_pw}" -lt 8 ]; then
+      [ -n "$cur_pw" ] && echo "  [!!] too short — 8 characters minimum"
+      cur_pw=""
+    fi
+  done
+  set_key ADMIN_PASSWORD "$cur_pw"
+  echo "  Every workflow, run and connection is scoped to an org id."
   printf '  Org id [local]: '
   read -r admin_org || admin_org=""
   [ -n "$admin_org" ] && set_key ADMIN_ORG_ID "$admin_org"
@@ -163,8 +188,8 @@ echo ""
 echo "  Sign in:   $(envval ADMIN_EMAIL)  /  $(envval ADMIN_PASSWORD)"
 echo "             seeded as super_admin in org '${org_id}' — every workflow,"
 echo "             run and connection you create is scoped to that org."
-echo "             Credentials live in .env (grep ^ADMIN_ .env). Change the"
-echo "             default password before anyone else can reach this port."
+echo "             Credentials are the ones you chose — they live in .env"
+echo "             (grep ^ADMIN_ .env)."
 echo ""
 echo "  No public sign-up: add teammates from this account — see INSTALL.md,"
 echo "  section 'Sign in'."

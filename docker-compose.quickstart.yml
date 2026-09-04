@@ -139,8 +139,18 @@ services:
       - sh
       - -c
       - |
+        # No credential defaults, deliberately: a default is a credential
+        # every install shares. Refuse to seed until the installer sets both.
+        if [ -z "$${ADMIN_EMAIL}" ] || [ -z "$${ADMIN_PASSWORD}" ]; then
+          echo "" >&2
+          echo "[user-service-init] ADMIN_EMAIL and ADMIN_PASSWORD are not set." >&2
+          echo "[user-service-init] There are no default credentials. Set both in .env" >&2
+          echo "[user-service-init] (or run scripts/quickstart/wizard.sh, which asks)" >&2
+          echo "[user-service-init] and run 'up' again." >&2
+          exit 1
+        fi
         for i in $$(seq 1 20); do
-          if node src/scripts/create-admin.js                "$${ADMIN_EMAIL:-admin@example.com}"                "$${ADMIN_PASSWORD:-admin}"                "Admin" --role=super_admin                "--org=$${ADMIN_ORG_ID:-local}"; then
+          if node src/scripts/create-admin.js                "$${ADMIN_EMAIL}"                "$${ADMIN_PASSWORD}"                "Admin" --role=super_admin                "--org=$${ADMIN_ORG_ID:-local}"; then
             exit 0
           fi
           echo "[user-service-init] admin creation failed, retrying ($$i/20)"

@@ -106,8 +106,14 @@ def main() -> int:
     env = load_env()
     port = env.get("FLOWS_API_PORT", "9200")
     base = os.environ.get("FLOWS_API_BASE", f"http://localhost:{port}")
-    email = env.get("ADMIN_EMAIL", "admin@example.com")
-    password = env.get("ADMIN_PASSWORD", "admin")
+    # No credential defaults, deliberately — mirror the stack, which refuses
+    # to seed an account until the installer sets both.
+    email = env.get("ADMIN_EMAIL", "")
+    password = env.get("ADMIN_PASSWORD", "")
+    if not email or not password:
+        fail("ADMIN_EMAIL / ADMIN_PASSWORD are not set in .env — there are no "
+             "defaults. Set both (or run scripts/quickstart/wizard.sh) and re-run.")
+        return report()
 
     print(f"\nCitra Flows smoke test -> {base}\n")
 
