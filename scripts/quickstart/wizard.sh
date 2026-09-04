@@ -267,6 +267,13 @@ current_key="$(grep -m1 '^LLM_API_KEY=' "$ENV_FILE" | cut -d= -f2- || true)"
 if [ -z "${current_key}" ]; then
   say "Model access"
   echo "  Flows uses an OpenAI-compatible endpoint for its AI-assisted steps."
+  echo ""
+  echo "  No key yet? Create a free account at https://openrouter.ai and make"
+  echo "  a new key at https://openrouter.ai/keys. The account and the key"
+  echo "  cost nothing; usage is pay-as-you-go — light usage costs little to"
+  echo "  nothing (rate-limited free-tier models exist), heavier usage needs"
+  echo "  a small credit balance bought up front."
+  echo ""
   echo "  Leave blank to skip — the stack runs, those steps will error until set."
   printf '  LLM_API_KEY (input hidden; Enter to skip): '
   read -rs llm_key || llm_key=""
