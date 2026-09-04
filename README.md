@@ -22,7 +22,19 @@ make wizard                      # generates .env with fresh secrets, then start
 python scripts/smoke_test.py     # signs in, runs a workflow, asserts it completed
 ```
 
-Then open <http://localhost:8088>. Full guide: [`INSTALL.md`](INSTALL.md).
+That works as-is on **Linux and macOS**. On **Windows**, `make` does not exist —
+run the same wizard from **Git Bash** (installed with
+[Git for Windows](https://git-scm.com/download/win); WSL works too):
+
+```bash
+bash scripts/quickstart/wizard.sh
+python scripts/smoke_test.py
+```
+
+The smoke test and every `docker compose` command run in any shell —
+PowerShell included; only the `.sh` scripts and `make` need a POSIX shell.
+Then open <http://localhost:8088>. Full guide, including a no-scripts path
+that is pure `docker compose`: [`INSTALL.md`](INSTALL.md).
 
 ## Support this project
 

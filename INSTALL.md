@@ -14,8 +14,18 @@ Runs on a laptop. Clone it, or download a release — both give an identical,
 self-contained tree, and the release needs no `git` at all:
 
 ```bash
-curl -sSL https://github.com/Trustedwear-Tech/citra-flows/archive/refs/tags/v0.2.0.tar.gz | tar xz
-cd citra-flows-0.2.0
+# Linux / macOS (substitute the newest tag from the Releases page)
+curl -sSL https://github.com/Trustedwear-Tech/citra-flows/archive/refs/tags/v0.2.3.tar.gz | tar xz
+cd citra-flows-0.2.3
+```
+
+```powershell
+# Windows PowerShell — curl.exe and tar ship with Windows 10+. It must be
+# curl.exe: bare `curl` is PowerShell's alias for Invoke-WebRequest, and
+# piping binaries corrupts them in Windows PowerShell, hence two steps.
+curl.exe -sSLo citra-flows.tar.gz https://github.com/Trustedwear-Tech/citra-flows/archive/refs/tags/v0.2.3.tar.gz
+tar xzf citra-flows.tar.gz
+cd citra-flows-0.2.3
 ```
 
 Then, any OS:
@@ -47,7 +57,23 @@ writing anything.
 > initialise — and a downloaded release, which has no `.git` at all, could
 > never have run it.
 
-(PowerShell: `copy .env.example .env`)
+## Which shell runs what
+
+Everything above is shell-agnostic. The `.sh` scripts are not — here is the
+whole map, so nothing surprises you mid-install:
+
+| Command | Linux / macOS | Windows |
+|---|---|---|
+| `cp .env.example .env` | any terminal | works in PowerShell too (`cp` = `Copy-Item`); `copy` in cmd |
+| `docker compose ...` | any terminal | PowerShell, cmd, or Git Bash — identical |
+| `python scripts/smoke_test.py` | `python3` on most distros | `python` (any shell; stdlib only) |
+| `make wizard` / `make install` / `make smoke` | ✓ (`apt install make`; macOS has it with Xcode CLT) | ✗ — no `make`; use the script equivalents |
+| `scripts/quickstart/*.sh` (wizard, gen-env) | any terminal | **Git Bash** (ships with [Git for Windows](https://git-scm.com/download/win)) or WSL — not PowerShell/cmd |
+
+The Windows column is verified end-to-end on Windows 11 (PowerShell and Git
+Bash). The only Windows-specific requirement in the whole install is Git Bash,
+and only if you want the wizard — the pure `docker compose` path above needs
+nothing beyond Docker Desktop.
 
 That builds four images, starts nine containers, and returns once they are
 healthy. First run takes 5–10 minutes — mostly `pip install`, `npm install`
