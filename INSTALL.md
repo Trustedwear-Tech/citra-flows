@@ -77,9 +77,11 @@ on every `up` by the one-shot `citra-user-service-init` container from
 `ADMIN_EMAIL` / `ADMIN_PASSWORD` in `.env` (idempotent — re-running resets the
 password to the `.env` value). It is created as **`super_admin`** in the org
 **`ADMIN_ORG_ID`** (default `local`) — every workflow, run and connection you
-create is scoped to that org. The wizard and `make install` rotate
-`ADMIN_PASSWORD` to a random value and print the credentials when they finish;
-they are always readable with `grep ^ADMIN_ .env`.
+create is scoped to that org. The defaults are `admin@example.com` / `admin`;
+the wizard prompts for the email and prints both credentials when it finishes,
+and they are always readable with `grep ^ADMIN_ .env`. The password is
+deliberately simple for a first run on a laptop — change it in `.env` (and
+re-run `up`, which re-seeds) before anyone else can reach the port.
 
 There is no public sign-up. Create further accounts (org admins, members) from
 the seeded admin with `create-admin.js` inside the user-service container:

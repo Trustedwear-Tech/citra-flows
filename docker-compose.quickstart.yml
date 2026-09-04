@@ -140,7 +140,7 @@ services:
       - -c
       - |
         for i in $$(seq 1 20); do
-          if node src/scripts/create-admin.js                "$${ADMIN_EMAIL:-admin@example.com}"                "$${ADMIN_PASSWORD:-change-me-locally}"                "Admin" --role=super_admin                "--org=$${ADMIN_ORG_ID:-local}"; then
+          if node src/scripts/create-admin.js                "$${ADMIN_EMAIL:-admin@example.com}"                "$${ADMIN_PASSWORD:-admin}"                "Admin" --role=super_admin                "--org=$${ADMIN_ORG_ID:-local}"; then
             exit 0
           fi
           echo "[user-service-init] admin creation failed, retrying ($$i/20)"

@@ -31,9 +31,8 @@ set_key() {
 cp .env.example .env
 set_key JWT_SECRET "$(rand)"
 set_key MONGODB_PASSWORD "$(rand)"
-# Short on purpose: it is typed into a login form. Printed by the wizard, or:
-#   grep ^ADMIN_ .env
-set_key ADMIN_PASSWORD "$(rand | cut -c1-12)"
-echo "Created .env from .env.example with fresh JWT_SECRET, MONGODB_PASSWORD and ADMIN_PASSWORD."
-echo "Sign-in credentials: grep ^ADMIN_ .env  (seeded as super_admin in org ADMIN_ORG_ID on the next 'up')"
+echo "Created .env from .env.example with fresh JWT_SECRET and MONGODB_PASSWORD."
+echo "Sign-in: ADMIN_EMAIL / ADMIN_PASSWORD from .env (defaults admin@example.com / admin,"
+echo "seeded as super_admin in org ADMIN_ORG_ID on the next 'up'). Change the password"
+echo "before anyone else can reach the port."
 echo "Set LLM_API_KEY before using the AI-assisted steps (or run: make wizard)."

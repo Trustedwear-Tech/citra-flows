@@ -69,9 +69,10 @@ else
   cp .env.example "$ENV_FILE"
   set_key JWT_SECRET       "$(rand)"
   set_key MONGODB_PASSWORD "$(rand)"
-  # Short on purpose: it is typed into a login form, and it is printed below.
-  set_key ADMIN_PASSWORD   "$(rand | cut -c1-12)"
-  ok ".env created with freshly generated JWT_SECRET, MONGODB_PASSWORD and ADMIN_PASSWORD"
+  # ADMIN_PASSWORD stays the simple default ('admin') so the first sign-in is
+  # frictionless; the Done card below prints it, and the card and .env.example
+  # both say to change it before anyone else can reach the port.
+  ok ".env created with freshly generated JWT_SECRET and MONGODB_PASSWORD"
 
   # -- the first account is YOURS -------------------------------------------
   # Nothing Citra-branded is baked in: the seeded super-admin is the
@@ -162,7 +163,8 @@ echo ""
 echo "  Sign in:   $(envval ADMIN_EMAIL)  /  $(envval ADMIN_PASSWORD)"
 echo "             seeded as super_admin in org '${org_id}' — every workflow,"
 echo "             run and connection you create is scoped to that org."
-echo "             Credentials live in .env (grep ^ADMIN_ .env)."
+echo "             Credentials live in .env (grep ^ADMIN_ .env). Change the"
+echo "             default password before anyone else can reach this port."
 echo ""
 echo "  No public sign-up: add teammates from this account — see INSTALL.md,"
 echo "  section 'Sign in'."
