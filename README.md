@@ -241,9 +241,12 @@ Use it, modify it, run it in production, offer it as a service, fold it into a
 commercial product. No non-production restriction, no Change Date, no licence to
 buy. See [`LICENSE`](LICENSE) and [`NOTICE`](NOTICE).
 
-This was previously Business Source License 1.1, which reserved production use.
-That restriction is gone and does not come back: an Apache grant is
-irrevocable.
+There is no dual licence, no open-core split, and no commercial tier of this
+code: what is here is the whole product under one licence.
+
+(For the record, an earlier release reserved production use. That was dropped
+before this repository was made public, and it cannot return -- an Apache grant,
+once given, is irrevocable.)
 
 The vendored `citra-common` tree is Apache-2.0 too — see its own LICENSE and
 NOTICE.
