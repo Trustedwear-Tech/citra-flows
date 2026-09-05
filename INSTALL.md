@@ -15,17 +15,17 @@ self-contained tree, and the release needs no `git` at all:
 
 ```bash
 # Linux / macOS (substitute the newest tag from the Releases page)
-curl -sSL https://github.com/Trustedwear-Tech/citra-flows/archive/refs/tags/v0.2.3.tar.gz | tar xz
-cd citra-flows-0.2.3
+curl -sSL https://github.com/Trustedwear-Tech/citra-flows/archive/refs/tags/v0.2.4.tar.gz | tar xz
+cd citra-flows-0.2.4
 ```
 
 ```powershell
 # Windows PowerShell — curl.exe and tar ship with Windows 10+. It must be
 # curl.exe: bare `curl` is PowerShell's alias for Invoke-WebRequest, and
 # piping binaries corrupts them in Windows PowerShell, hence two steps.
-curl.exe -sSLo citra-flows.tar.gz https://github.com/Trustedwear-Tech/citra-flows/archive/refs/tags/v0.2.3.tar.gz
+curl.exe -sSLo citra-flows.tar.gz https://github.com/Trustedwear-Tech/citra-flows/archive/refs/tags/v0.2.4.tar.gz
 tar xzf citra-flows.tar.gz
-cd citra-flows-0.2.3
+cd citra-flows-0.2.4
 ```
 
 Then, any OS:
